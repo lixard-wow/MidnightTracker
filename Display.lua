@@ -198,26 +198,67 @@ function Display:UpdateDisplay()
 	displayFrame.content:SetSize(contentWidth, contentHeight)
 end
 
+-- Helper: Get gear quality color based on activity level
+local function GetVaultQualityColor(activityType, level)
+	if activityType == "Raid" then
+		-- Raid difficulty IDs: 17=LFR, 14=Normal, 15=Heroic, 16=Mythic
+		if level == 16 then
+			return 1, 0.5, 0 -- Orange - Mythic
+		elseif level == 15 then
+			return 0.64, 0.21, 0.93 -- Purple - Heroic
+		elseif level == 14 then
+			return 0, 0.44, 0.87 -- Blue - Normal
+		elseif level == 17 then
+			return 0.12, 1, 0 -- Green - LFR
+		else
+			return 0.6, 0.6, 0.6 -- Grey - Unknown
+		end
+	elseif activityType == "M+" then
+		-- Mythic+ key level
+		if level >= 10 then
+			return 1, 0.5, 0 -- Orange - Myth track (M+10+)
+		elseif level >= 5 then
+			return 0.64, 0.21, 0.93 -- Purple - Hero track (M+5-9)
+		elseif level >= 2 then
+			return 0, 0.44, 0.87 -- Blue - Champion track (M+2-4)
+		elseif level >= 1 then
+			return 0.12, 1, 0 -- Green - Mythic 0/low keys
+		else
+			return 0.6, 0.6, 0.6 -- Grey - No progress
+		end
+	elseif activityType == "Del" then
+		-- Delve tier level
+		if level >= 11 then
+			return 1, 0.5, 0 -- Orange - Tier 11+
+		elseif level >= 8 then
+			return 0.64, 0.21, 0.93 -- Purple - Tier 8-10
+		elseif level >= 4 then
+			return 0, 0.44, 0.87 -- Blue - Tier 4-7
+		elseif level >= 1 then
+			return 0.12, 1, 0 -- Green - Tier 1-3
+		else
+			return 0.6, 0.6, 0.6 -- Grey - No progress
+		end
+	end
+	return 0.6, 0.6, 0.6 -- Default grey
+end
+
 -- Add Great Vault progress display
 function Display:AddGreatVaultDisplay(vaultData, yOffset)
-	local iconsPerRow = addon.db.display.iconsPerRow or 3
-	local columnWidth = (addon.db.display.iconSize or 18) + 34
-
-	-- Add each vault type that's enabled horizontally
+	-- Add each vault type that's enabled vertically
 	local vaultTypes = {
 		{name = "Raid", data = vaultData.raid, setting = "showVaultRaid"},
 		{name = "M+", data = vaultData.mythicplus, setting = "showVaultMythicPlus"},
-		{name = "World", data = vaultData.world, setting = "showVaultWorld"},
+		{name = "Del", data = vaultData.world, setting = "showVaultWorld"},
 	}
 
 	local xOffset = 2
-	local vaultWidth = 100 -- Width per vault section
-	local showedAny = false
+	local vaultWidth = 100 -- Width for each vault row
 
 	for _, vaultType in ipairs(vaultTypes) do
 		if addon.db.settings[vaultType.setting] and vaultType.data then
 			local frame = CreateFrame("Frame", nil, displayFrame.content)
-			frame:SetSize(vaultWidth, 20)
+			frame:SetSize(vaultWidth, 16)
 			frame:SetPoint("TOPLEFT", displayFrame.content, "TOPLEFT", xOffset, yOffset)
 
 			-- Name label
@@ -226,37 +267,34 @@ function Display:AddGreatVaultDisplay(vaultData, yOffset)
 			nameText:SetText(vaultType.name .. ":")
 			nameText:SetTextColor(0.3, 0.9, 1)
 
-			-- Progress text
-			local progressText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-			progressText:SetPoint("LEFT", nameText, "RIGHT", 3, 0)
+			-- Calculate how many slots unlocked (0-3)
 			local current = vaultType.data.current or 0
-			progressText:SetText(format("%d/8", current))
-
-			-- Progress bars (using textures instead of characters)
-			local barX = 45
-			for i, threshold in ipairs(vaultType.data.thresholds) do
-				local bar = frame:CreateTexture(nil, "ARTWORK")
-				bar:SetSize(8, 12)
-				bar:SetPoint("LEFT", barX + ((i-1) * 10), 0)
-
+			local thresholds = vaultType.data.thresholds or {3, 5, 8}
+			local slotsUnlocked = 0
+			for _, threshold in ipairs(thresholds) do
 				if current >= threshold then
-					bar:SetColorTexture(0, 1, 0, 1) -- Green
-				else
-					bar:SetColorTexture(0.3, 0.3, 0.3, 1) -- Grey
+					slotsUnlocked = slotsUnlocked + 1
 				end
 			end
 
+			-- Get level and determine color based on gear quality
+			local level = vaultType.data.level or 0
+			local r, g, b = GetVaultQualityColor(vaultType.name, level)
+
+			-- Progress text showing slots unlocked
+			local progressText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+			progressText:SetPoint("LEFT", nameText, "RIGHT", 3, 0)
+			progressText:SetText(format("%d/3", slotsUnlocked))
+			progressText:SetTextColor(r, g, b)
+
 			frame:Show()
 			table.insert(currencyFrames, frame)
-			xOffset = xOffset + vaultWidth
-			showedAny = true
+			yOffset = yOffset - 16 -- Move down for next vault type
 		end
 	end
 
-	-- Move down only once after all vault sections
-	if showedAny then
-		yOffset = yOffset - 25
-	end
+	-- Add extra spacing after vault section
+	yOffset = yOffset - 7
 
 	return yOffset
 end

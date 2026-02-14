@@ -15,23 +15,25 @@ local function CreateCustomSlider(parent, width, min, max, step, defaultValue, l
 	slider.label = slider:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	slider.label:SetPoint("BOTTOMLEFT", slider, "TOPLEFT", 0, 5)
 	slider.label:SetText(label)
+	slider.label:SetTextColor(0.95, 0.95, 0.95)
 
 	-- Value text (right upper)
 	slider.valueText = slider:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	slider.valueText:SetPoint("BOTTOMRIGHT", slider, "TOPRIGHT", 0, 5)
+	slider.valueText:SetTextColor(0.95, 0.95, 0.95)
 
 	-- Track background
 	local track = slider:CreateTexture(nil, "BACKGROUND")
 	track:SetPoint("LEFT", 0, 0)
 	track:SetPoint("RIGHT", 0, 0)
 	track:SetHeight(4)
-	track:SetColorTexture(0.1, 0.1, 0.1, 1)
+	track:SetColorTexture(0.22, 0.22, 0.24, 1)
 
 	-- Track fill (shows current value)
 	slider.fill = slider:CreateTexture(nil, "BORDER")
 	slider.fill:SetPoint("LEFT", 0, 0)
 	slider.fill:SetHeight(4)
-	slider.fill:SetColorTexture(0.2, 0.6, 1, 1)
+	slider.fill:SetColorTexture(0.5, 0.58, 0.46, 1)
 
 	-- Thumb (draggable button)
 	slider.thumb = CreateFrame("Button", nil, slider)
@@ -40,7 +42,7 @@ local function CreateCustomSlider(parent, width, min, max, step, defaultValue, l
 
 	local thumbTex = slider.thumb:CreateTexture(nil, "OVERLAY")
 	thumbTex:SetAllPoints()
-	thumbTex:SetColorTexture(0.15, 0.15, 0.15, 1)
+	thumbTex:SetColorTexture(0.56, 0.63, 0.53, 1)
 
 	-- Slider properties
 	slider.min = min
@@ -133,25 +135,26 @@ local function CreateCustomCheckbox(parent, label, checked)
 	-- Box background
 	local bg = checkbox:CreateTexture(nil, "BACKGROUND")
 	bg:SetAllPoints()
-	bg:SetColorTexture(0.08, 0.08, 0.08, 1)
+	bg:SetColorTexture(0.56, 0.63, 0.53, 1)
 
 	-- Box border
 	local border = checkbox:CreateTexture(nil, "BORDER")
-	border:SetPoint("TOPLEFT", -1, 1)
-	border:SetPoint("BOTTOMRIGHT", 1, -1)
-	border:SetColorTexture(0.15, 0.15, 0.15, 1)
+	border:SetPoint("TOPLEFT", checkbox, "TOPLEFT", 1, -1)
+	border:SetPoint("BOTTOMRIGHT", checkbox, "BOTTOMRIGHT", -1, 1)
+	border:SetColorTexture(0, 0, 0, 1)
 
 	-- Check mark
 	checkbox.check = checkbox:CreateTexture(nil, "OVERLAY")
-	checkbox.check:SetPoint("CENTER")
-	checkbox.check:SetSize(14, 14)
-	checkbox.check:SetColorTexture(0.2, 0.8, 0.2, 1)
+	checkbox.check:SetPoint("TOPLEFT", checkbox, "TOPLEFT", 4, -4)
+	checkbox.check:SetPoint("BOTTOMRIGHT", checkbox, "BOTTOMRIGHT", -4, 4)
+	checkbox.check:SetColorTexture(0.56, 0.63, 0.53, 1)
 	checkbox.check:Hide()
 
 	-- Label
 	checkbox.label = checkbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	checkbox.label:SetPoint("LEFT", checkbox, "RIGHT", 8, 0)
 	checkbox.label:SetText(label)
+	checkbox.label:SetTextColor(0.95, 0.95, 0.95)
 	checkbox.label:SetJustifyH("LEFT")
 
 	-- State
@@ -202,33 +205,34 @@ local function CreateCustomButton(parent, width, height, text)
 	-- Background
 	button.bg = button:CreateTexture(nil, "BACKGROUND")
 	button.bg:SetAllPoints()
-	button.bg:SetColorTexture(0.1, 0.1, 0.1, 1)
+	button.bg:SetColorTexture(0, 0, 0, 1)
 
 	-- Border
 	local border = button:CreateTexture(nil, "BORDER")
 	border:SetPoint("TOPLEFT", -1, 1)
 	border:SetPoint("BOTTOMRIGHT", 1, -1)
-	border:SetColorTexture(0.15, 0.15, 0.15, 1)
+	border:SetColorTexture(0.56, 0.63, 0.53, 1)
 
 	-- Highlight
 	button.highlight = button:CreateTexture(nil, "HIGHLIGHT")
 	button.highlight:SetAllPoints()
-	button.highlight:SetColorTexture(0.1, 0.1, 0.1, 0.5)
+	button.highlight:SetColorTexture(0.56, 0.63, 0.53, 0.18)
 
 	-- Text
 	button.text = button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	button.text:SetPoint("CENTER")
 	button.text:SetText(text)
+	button.text:SetTextColor(0.95, 0.95, 0.95)
 
-	-- Disabled state
+	-- Disabled state (selected)
 	function button:SetEnabled(enabled)
 		if enabled then
-			self.bg:SetColorTexture(0.1, 0.1, 0.1, 1)
-			self.text:SetTextColor(1, 1, 1)
+			self.bg:SetColorTexture(0.07, 0.07, 0.09, 1)
+			self.text:SetTextColor(0.95, 0.95, 0.95)
 			self:Enable()
 		else
-			self.bg:SetColorTexture(0.3, 0.5, 0.8, 1)
-			self.text:SetTextColor(1, 1, 0.5)
+			self.bg:SetColorTexture(0.09, 0.11, 0.09, 1)
+			self.text:SetTextColor(0.56, 0.63, 0.53, 1)
 			self:Disable()
 		end
 	end
@@ -239,7 +243,7 @@ end
 function Config:Initialize()
 	-- Create config panel
 	configFrame = CreateFrame("Frame", "MidnightTrackerConfig", UIParent)
-	configFrame:SetSize(800, 700)
+	configFrame:SetSize(650, 550)
 	configFrame:SetPoint("CENTER")
 	configFrame:SetMovable(true)
 	configFrame:EnableMouse(true)
@@ -253,26 +257,26 @@ function Config:Initialize()
 	-- Background
 	local bg = configFrame:CreateTexture(nil, "BACKGROUND")
 	bg:SetAllPoints()
-	bg:SetColorTexture(0, 0, 0, 0.98)
+	bg:SetColorTexture(0.04, 0.04, 0.05, 0.98)
 
 	-- Border
 	local border = configFrame:CreateTexture(nil, "BORDER")
 	border:SetPoint("TOPLEFT", -2, 2)
 	border:SetPoint("BOTTOMRIGHT", 2, -2)
-	border:SetColorTexture(0.15, 0.15, 0.15, 1)
+	border:SetColorTexture(0, 0, 0, 1)
 
 	-- Title bar
 	local titleBar = configFrame:CreateTexture(nil, "ARTWORK")
 	titleBar:SetPoint("TOPLEFT", 0, 0)
 	titleBar:SetPoint("TOPRIGHT", 0, 0)
 	titleBar:SetHeight(40)
-	titleBar:SetColorTexture(0.1, 0.1, 0.1, 1)
+	titleBar:SetColorTexture(0, 0, 0, 1)
 
 	-- Title
 	local title = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	title:SetPoint("TOP", 0, -12)
 	title:SetText("MidnightTracker Settings")
-	title:SetTextColor(1, 0.8, 0)
+	title:SetTextColor(0.56, 0.63, 0.53)
 
 	-- Close button
 	local closeBtn = CreateFrame("Button", nil, configFrame)
@@ -281,15 +285,16 @@ function Config:Initialize()
 
 	local closeBg = closeBtn:CreateTexture(nil, "BACKGROUND")
 	closeBg:SetAllPoints()
-	closeBg:SetColorTexture(0.8, 0.2, 0.2, 1)
+	closeBg:SetColorTexture(0.45, 0.12, 0.12, 1)
 
 	local closeText = closeBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	closeText:SetPoint("CENTER", 0, 1)
 	closeText:SetText("×")
+	closeText:SetTextColor(1, 1, 1)
 
 	local closeHighlight = closeBtn:CreateTexture(nil, "HIGHLIGHT")
 	closeHighlight:SetAllPoints()
-	closeHighlight:SetColorTexture(1, 0.3, 0.3, 0.5)
+	closeHighlight:SetColorTexture(1, 0.2, 0.2, 0.35)
 
 	closeBtn:SetScript("OnClick", function()
 		Config:Hide()
@@ -322,24 +327,24 @@ function Config:BuildSettings(parent)
 		-- Tab background
 		tab.bg = tab:CreateTexture(nil, "BACKGROUND")
 		tab.bg:SetAllPoints()
-		tab.bg:SetColorTexture(0.08, 0.08, 0.08, 0.9)
+		tab.bg:SetColorTexture(0.07, 0.07, 0.09, 1)
 
 		-- Tab border
 		local border = tab:CreateTexture(nil, "BORDER")
 		border:SetPoint("TOPLEFT", -1, 1)
 		border:SetPoint("BOTTOMRIGHT", 1, -1)
-		border:SetColorTexture(0.15, 0.15, 0.15, 1)
+		border:SetColorTexture(0.56, 0.63, 0.53, 1)
 
 		-- Tab highlight on hover
 		tab.highlight = tab:CreateTexture(nil, "HIGHLIGHT")
 		tab.highlight:SetAllPoints()
-		tab.highlight:SetColorTexture(0.1, 0.1, 0.1, 0.5)
+		tab.highlight:SetColorTexture(0.56, 0.63, 0.53, 0.18)
 
 		-- Tab text
 		tab.text = tab:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 		tab.text:SetPoint("CENTER")
 		tab.text:SetText(tabName)
-		tab.text:SetTextColor(0.6, 0.6, 0.6)
+		tab.text:SetTextColor(0.95, 0.95, 0.95)
 
 		tabs[i] = tab
 	end
@@ -363,12 +368,12 @@ function Config:BuildSettings(parent)
 	-- Scrollbar background
 	local scrollbarBg = scrollbar:CreateTexture(nil, "BACKGROUND")
 	scrollbarBg:SetAllPoints()
-	scrollbarBg:SetColorTexture(0.05, 0.05, 0.05, 0.8)
+	scrollbarBg:SetColorTexture(0.07, 0.07, 0.09, 1)
 
 	-- Scrollbar thumb
 	local scrollbarThumb = scrollbar:CreateTexture(nil, "OVERLAY")
 	scrollbarThumb:SetSize(12, 30)
-	scrollbarThumb:SetColorTexture(0.15, 0.15, 0.15, 1)
+	scrollbarThumb:SetColorTexture(0.56, 0.63, 0.53, 1)
 	scrollbar:SetThumbTexture(scrollbarThumb)
 
 	-- Mouse wheel scrolling
@@ -391,10 +396,29 @@ function Config:BuildSettings(parent)
 	scrollChild:SetSize(750, 2100)
 	scrollFrame:SetScrollChild(scrollChild)
 
+	-- Function to update scroll range based on active tab
+	local function UpdateScrollRange(tabIndex)
+		local content = tabContents[tabIndex]
+		if not content then return end
+
+		-- Tabs 1 and 2 don't need scrolling
+		if tabIndex == 1 or tabIndex == 2 then
+			scrollbar:Hide()
+			scrollbar:SetMinMaxValues(0, 0)
+			scrollbar:SetValue(0)
+			scrollFrame:SetVerticalScroll(0)
+		else
+			-- Tab 3 (Expansions) - calculate actual content height
+			scrollbar:Show()
+			local maxScroll = math.max(0, content:GetHeight() - scrollFrame:GetHeight())
+			scrollbar:SetMinMaxValues(0, maxScroll)
+			scrollbar:SetValue(0)
+		end
+	end
+
 	-- Update scrollbar range when needed
 	scrollFrame:SetScript("OnShow", function(self)
-		local maxScroll = math.max(0, scrollChild:GetHeight() - self:GetHeight())
-		scrollbar:SetMinMaxValues(0, maxScroll)
+		UpdateScrollRange(1) -- Default to tab 1
 	end)
 
 	-- Create content frames inside scroll child
@@ -402,7 +426,12 @@ function Config:BuildSettings(parent)
 		local content = CreateFrame("Frame", nil, scrollChild)
 		content:SetPoint("TOPLEFT", 0, 0)
 		content:SetPoint("TOPRIGHT", -20, 0)
-		content:SetHeight(2100)
+		-- Set initial height (will be adjusted after content is built)
+		if i == 1 or i == 2 then
+			content:SetHeight(450) -- Fits without scrolling
+		else
+			content:SetHeight(2100) -- Expansions tab needs more space
+		end
 		content:Hide()
 		tabContents[i] = content
 
@@ -410,25 +439,25 @@ function Config:BuildSettings(parent)
 		tabs[i]:SetScript("OnClick", function()
 			-- Deselect all tabs
 			for j, otherTab in ipairs(tabs) do
-				otherTab.bg:SetColorTexture(0.08, 0.08, 0.08, 0.9)
-				otherTab.text:SetTextColor(0.6, 0.6, 0.6)
+				otherTab.bg:SetColorTexture(0.07, 0.07, 0.09, 1)
+				otherTab.text:SetTextColor(0.95, 0.95, 0.95)
 				otherTab:SetEnabled(true)
 				tabContents[j]:Hide()
 			end
 			-- Select this tab
-			tabs[i].bg:SetColorTexture(0.3, 0.5, 0.8, 1)
-			tabs[i].text:SetTextColor(1, 1, 0.5)
+			tabs[i].bg:SetColorTexture(0.09, 0.11, 0.09, 1)
+			tabs[i].text:SetTextColor(0.56, 0.63, 0.53)
 			tabs[i]:SetEnabled(false)
 			content:Show()
-			-- Reset scroll position
-			scrollbar:SetValue(0)
+			-- Reset scroll position and update scroll range
+			UpdateScrollRange(i)
 		end)
 	end
 
 	-- Show first tab by default
 	tabContents[1]:Show()
-	tabs[1].bg:SetColorTexture(0.3, 0.5, 0.8, 1)
-	tabs[1].text:SetTextColor(1, 1, 0.5)
+	tabs[1].bg:SetColorTexture(0.09, 0.11, 0.09, 1)
+	tabs[1].text:SetTextColor(0.56, 0.63, 0.53)
 	tabs[1]:SetEnabled(false)
 
 	-- === TAB 1: DISPLAY SETTINGS ===
@@ -448,7 +477,7 @@ function Config:BuildDisplaySettings(parent)
 	local sizeLabel = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	sizeLabel:SetPoint("TOPLEFT", 10, yOffset)
 	sizeLabel:SetText("Display Size:")
-	sizeLabel:SetTextColor(0.6, 0.6, 0.6)
+	sizeLabel:SetTextColor(0.95, 0.95, 0.95)
 	yOffset = yOffset - 25
 
 	local sizePresets = {
@@ -604,7 +633,7 @@ function Config:BuildGeneralSettings(parent)
 	local vaultLabel = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	vaultLabel:SetPoint("TOPLEFT", 10, yOffset)
 	vaultLabel:SetText("Great Vault:")
-	vaultLabel:SetTextColor(0.2, 0.6, 0.8)
+	vaultLabel:SetTextColor(0.56, 0.63, 0.53)
 	yOffset = yOffset - 25
 
 	-- Show Great Vault checkbox
@@ -660,7 +689,7 @@ function Config:BuildExpansionsSettings(parent)
 	local instructionText = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	instructionText:SetPoint("TOPLEFT", 10, yOffset)
 	instructionText:SetText("Check expansion to enable/expand. Uncheck to disable/collapse. Uncheck individual currencies to hide them.")
-	instructionText:SetTextColor(0.5, 0.5, 0.5)
+	instructionText:SetTextColor(0.8, 0.8, 0.8)
 
 	-- Ordered category list
 	local orderedCategories = {
@@ -682,6 +711,17 @@ function Config:BuildExpansionsSettings(parent)
 	local previousFrame = instructionText
 	local expansionFrames = {}
 
+	-- Function to recalculate total content height
+	local function RecalculateContentHeight()
+		local totalHeight = 20 -- Initial offset
+		totalHeight = totalHeight + 30 -- Instruction text height
+		for _, frame in ipairs(expansionFrames) do
+			totalHeight = totalHeight + frame:GetHeight() + 5 -- Frame height + spacing
+		end
+		totalHeight = totalHeight + 20 -- Bottom padding
+		parent:SetHeight(totalHeight)
+	end
+
 	-- Build expansion sections
 	for i, categoryInfo in ipairs(orderedCategories) do
 		local categoryName = categoryInfo.key
@@ -699,7 +739,7 @@ function Config:BuildExpansionsSettings(parent)
 			local catCheck = CreateCustomCheckbox(expansionFrame, categoryInfo.name, addon.db.settings.categories[categoryInfo.setting] ~= false)
 			catCheck:SetPoint("TOPLEFT", 0, frameYOffset)
 			catCheck.label:SetFontObject("GameFontNormalLarge")
-			catCheck.label:SetTextColor(1, 0.82, 0)
+			catCheck.label:SetTextColor(0.56, 0.63, 0.53)
 
 			frameYOffset = frameYOffset - 30
 
@@ -756,7 +796,7 @@ function Config:BuildExpansionsSettings(parent)
 			separator:SetPoint("LEFT", 0, 0)
 			separator:SetPoint("RIGHT", 0, 0)
 			separator:SetPoint("TOP", 0, -(expandedHeight - 5))
-			separator:SetColorTexture(0.1, 0.1, 0.1, 0.5)
+			separator:SetColorTexture(0.56, 0.63, 0.53, 0.45)
 
 			-- Function to update collapsed state
 			local function UpdateCategoryState(enabled)
@@ -767,7 +807,7 @@ function Config:BuildExpansionsSettings(parent)
 					end
 					separator:Show()
 					expansionFrame:SetHeight(expandedHeight)
-					catCheck.label:SetTextColor(1, 0.82, 0)
+					catCheck.label:SetTextColor(0.56, 0.63, 0.53)
 				else
 					-- Collapsed: hide all currencies and separator
 					for _, currCheck in ipairs(currencyCheckboxes) do
@@ -775,8 +815,10 @@ function Config:BuildExpansionsSettings(parent)
 					end
 					separator:Hide()
 					expansionFrame:SetHeight(collapsedHeight)
-					catCheck.label:SetTextColor(0.5, 0.5, 0.5)
+					catCheck.label:SetTextColor(0.6, 0.6, 0.6)
 				end
+				-- Recalculate total content height
+				RecalculateContentHeight()
 			end
 
 			-- Set initial state
@@ -795,6 +837,11 @@ function Config:BuildExpansionsSettings(parent)
 			table.insert(expansionFrames, expansionFrame)
 		end
 	end
+
+	-- Calculate initial content height
+	C_Timer.After(0.1, function()
+		RecalculateContentHeight()
+	end)
 end
 
 function Config:SaveSettings()

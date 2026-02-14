@@ -120,6 +120,13 @@ eventHandlers.CURRENCY_DISPLAY_UPDATE = function(currencyID, quantity)
 	end
 end
 
+-- WEEKLY_REWARDS_UPDATE: weekly data changed (vault/reset/caps)
+eventHandlers.WEEKLY_REWARDS_UPDATE = function()
+	if addon.Tracker and addon.Tracker.UpdateAllCurrencies then
+		addon.Tracker:UpdateAllCurrencies()
+	end
+end
+
 -- PLAYER_MONEY: Fired when player money changes (in case we track gold)
 eventHandlers.PLAYER_MONEY = function()
 	-- Could update gold tracking here if needed

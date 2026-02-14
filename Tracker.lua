@@ -55,6 +55,33 @@ function Tracker:UpdateCurrency(currencyID)
 	end
 end
 
+-- Resolve effective weekly cap (API-first)
+function Tracker:GetEffectiveWeeklyCap(cached, fallbackWeeklyMax)
+	if not cached then
+		if fallbackWeeklyMax and fallbackWeeklyMax > 0 then
+			return fallbackWeeklyMax
+		end
+		return nil
+	end
+
+	-- Preferred source: true weekly cap from API
+	if cached.maxWeeklyQuantity and cached.maxWeeklyQuantity > 0 then
+		return cached.maxWeeklyQuantity
+	end
+
+	-- Some currencies expose capped progress via total-earned max quantity
+	if cached.useTotalEarnedForMaxQty and cached.maxQuantity and cached.maxQuantity > 0 then
+		return cached.maxQuantity
+	end
+
+	-- Fallback to static data if provided
+	if fallbackWeeklyMax and fallbackWeeklyMax > 0 then
+		return fallbackWeeklyMax
+	end
+
+	return nil
+end
+
 -- Get currency data from cache
 function Tracker:GetCurrency(currencyID)
 	return self.currencyCache[currencyID]
@@ -120,21 +147,24 @@ function Tracker:GetGreatVaultProgress()
 	if not activities then return nil end
 
 	local progress = {
-		raid = {current = 0, max = 8, thresholds = {2, 4, 8}},
-		mythicplus = {current = 0, max = 8, thresholds = {2, 4, 8}},
-		world = {current = 0, max = 8, thresholds = {2, 4, 8}},
+		raid = {current = 0, max = 8, thresholds = {2, 4, 8}, level = 0},
+		mythicplus = {current = 0, max = 8, thresholds = {2, 4, 8}, level = 0},
+		world = {current = 0, max = 8, thresholds = {2, 4, 8}, level = 0},
 	}
 
 	-- Parse activities and count progress
 	for _, activityInfo in ipairs(activities) do
 		if activityInfo.type == Enum.WeeklyRewardChestThresholdType.Raid then
 			progress.raid.current = activityInfo.progress or 0
+			progress.raid.level = math.max(progress.raid.level, activityInfo.level or 0)
 		elseif activityInfo.type == Enum.WeeklyRewardChestThresholdType.Activities then
 			-- Mythic+ dungeons
 			progress.mythicplus.current = activityInfo.progress or 0
+			progress.mythicplus.level = math.max(progress.mythicplus.level, activityInfo.level or 0)
 		elseif activityInfo.type == Enum.WeeklyRewardChestThresholdType.World then
 			-- World activities (including delves)
 			progress.world.current = activityInfo.progress or 0
+			progress.world.level = math.max(progress.world.level, activityInfo.level or 0)
 		end
 	end
 
@@ -321,6 +351,7 @@ function Tracker:GetAllTrackables()
 						local showUndiscovered = addon.db and addon.db.settings and addon.db.settings.showUndiscovered
 
 						if cached then
+							local effectiveWeeklyMax = self:GetEffectiveWeeklyCap(cached, weeklyMax)
 							-- Show discovered currencies with amount > 0 or when showZero is enabled
 							if cached.discovered and (cached.quantity > 0 or showZero) then
 								table.insert(categoryData.currencies, {
@@ -329,7 +360,7 @@ function Tracker:GetAllTrackables()
 									amount = cached.quantity,
 									icon = cached.iconFileID,
 									max = cached.maxQuantity or weeklyMax,
-									weeklyMax = cached.maxWeeklyQuantity or weeklyMax,
+									weeklyMax = effectiveWeeklyMax,
 									earnedThisWeek = cached.quantityEarnedThisWeek,
 								})
 							-- Show undiscovered currencies when showUndiscovered is enabled
@@ -340,7 +371,7 @@ function Tracker:GetAllTrackables()
 									amount = 0,
 									icon = cached.iconFileID or iconFileID,
 									max = cached.maxQuantity or weeklyMax,
-									weeklyMax = cached.maxWeeklyQuantity or weeklyMax,
+									weeklyMax = effectiveWeeklyMax,
 									earnedThisWeek = 0,
 								})
 							end
