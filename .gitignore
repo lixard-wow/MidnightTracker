@@ -1,0 +1,5 @@
+# IDE
+.vscode/
+
+# Temporary/old files
+Config_New.lua
