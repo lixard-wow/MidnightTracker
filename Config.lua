@@ -864,6 +864,14 @@ function Config:Show()
 	configFrame:Show()
 end
 
+function Config:RefreshCurrentTab()
+	if not configFrame then return end
+	-- Re-initialize to refresh the current tab content
+	configFrame:Hide()
+	self:Initialize()
+	configFrame:Show()
+end
+
 function Config:Hide()
 	if configFrame then
 		configFrame:Hide()
@@ -1084,7 +1092,60 @@ function Config:BuildChecklistAltsSettings(parent)
 			addon.Display:UpdateDisplay()
 		end
 	end)
-	yOffset = yOffset - 45
+	yOffset = yOffset - 50
+
+	-- Blacklist Manager subsection
+	local blacklistTitle = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	blacklistTitle:SetPoint("TOPLEFT", 10, yOffset)
+	blacklistTitle:SetText("Blacklisted Characters")
+	blacklistTitle:SetTextColor(0.95, 0.95, 0.95)
+	yOffset = yOffset - 25
+
+	-- Get blacklist
+	local blacklist = addon.AltManager and addon.AltManager:GetBlacklist() or {}
+	local hasBlacklist = next(blacklist) ~= nil
+
+	if hasBlacklist then
+		local blacklistInfo = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+		blacklistInfo:SetPoint("TOPLEFT", 20, yOffset)
+		blacklistInfo:SetText("These characters won't be tracked:")
+		blacklistInfo:SetTextColor(0.8, 0.8, 0.8)
+		yOffset = yOffset - 20
+
+		for realmChar, _ in pairs(blacklist) do
+			-- Extract name from key (Realm-Name)
+			local name = realmChar:match("%-(.+)") or realmChar
+
+			-- Character name
+			local charText = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+			charText:SetPoint("TOPLEFT", 30, yOffset)
+			charText:SetText(name)
+			charText:SetTextColor(1, 0.5, 0.5)
+
+			-- Remove button
+			local removeBtn = CreateCustomButton(parent, 80, 20, "Remove")
+			removeBtn:SetPoint("LEFT", charText, "RIGHT", 10, 0)
+			removeBtn:SetScript("OnClick", function()
+				if addon.AltManager and addon.AltManager.UnblacklistAlt then
+					addon.AltManager:UnblacklistAlt(realmChar)
+					-- Refresh config panel
+					if addon.Config and addon.Config.RefreshCurrentTab then
+						addon.Config:RefreshCurrentTab()
+					end
+				end
+			end)
+
+			yOffset = yOffset - 25
+		end
+	else
+		local noneText = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+		noneText:SetPoint("TOPLEFT", 20, yOffset)
+		noneText:SetText("No blacklisted characters")
+		noneText:SetTextColor(0.6, 0.6, 0.6)
+		yOffset = yOffset - 20
+	end
+
+	yOffset = yOffset - 10
 
 	-- Help text
 	local helpText = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")

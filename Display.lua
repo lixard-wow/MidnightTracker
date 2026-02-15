@@ -1158,6 +1158,80 @@ function Display:UpdateProgressionWeeklyTab()
 		end
 	end
 
+	-- Weekly Quests section
+	if addon.WeeklyTracker then
+		local weeklyQuests = addon.WeeklyTracker:GetAllWeeklyQuests()
+
+		if weeklyQuests and next(weeklyQuests) then
+			-- Group quests by category
+			local worldsoulQuests = {}
+			local zoneEventQuests = {}
+
+			for questID, quest in pairs(weeklyQuests) do
+				if quest.category == "Worldsoul" then
+					table.insert(worldsoulQuests, quest)
+				elseif quest.category == "Zone Event" then
+					table.insert(zoneEventQuests, quest)
+				end
+			end
+
+			-- Worldsoul Weeklies
+			if #worldsoulQuests > 0 then
+				local header = content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+				header:SetPoint("TOPLEFT", xOffset, yOffset)
+				header:SetText("Worldsoul Weeklies")
+				header:SetTextColor(1, 0.82, 0)
+				table.insert(progressionFrames, header)
+				yOffset = yOffset - 20
+
+				for _, quest in ipairs(worldsoulQuests) do
+					local questText = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+					questText:SetPoint("TOPLEFT", xOffset + 5, yOffset)
+					questText:SetWidth(contentWidth - 10)
+					questText:SetJustifyH("LEFT")
+
+					local checkmark = quest.completed and "✓" or "○"
+					local color = quest.completed and {0, 1, 0} or {1, 0.8, 0}
+					questText:SetText(format("%s %s", checkmark, quest.name))
+					questText:SetTextColor(color[1], color[2], color[3])
+					table.insert(progressionFrames, questText)
+					yOffset = yOffset - 16
+				end
+
+				yOffset = yOffset - 8
+				sectionsShown = sectionsShown + 1
+			end
+
+			-- Zone Events
+			if #zoneEventQuests > 0 then
+				local header = content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+				header:SetPoint("TOPLEFT", xOffset, yOffset)
+				header:SetText("Zone Events")
+				header:SetTextColor(1, 0.82, 0)
+				table.insert(progressionFrames, header)
+				yOffset = yOffset - 20
+
+				for _, quest in ipairs(zoneEventQuests) do
+					local questText = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+					questText:SetPoint("TOPLEFT", xOffset + 5, yOffset)
+					questText:SetWidth(contentWidth - 10)
+					questText:SetJustifyH("LEFT")
+
+					local checkmark = quest.completed and "✓" or "○"
+					local color = quest.completed and {0, 1, 0} or {1, 0.8, 0}
+					local displayName = quest.zone and format("%s (%s)", quest.name, quest.zone) or quest.name
+					questText:SetText(format("%s %s", checkmark, displayName))
+					questText:SetTextColor(color[1], color[2], color[3])
+					table.insert(progressionFrames, questText)
+					yOffset = yOffset - 16
+				end
+
+				yOffset = yOffset - 8
+				sectionsShown = sectionsShown + 1
+			end
+		end
+	end
+
 	-- Raid Lockouts section
 	if addon.db.settings.showRaidLockouts and addon.WeeklyTracker then
 		local lockouts = addon.WeeklyTracker:GetAllRaidLockouts()
@@ -1296,6 +1370,7 @@ function Display:UpdateProgressionAltsTab()
 		{header = "icon", width = 35, align = "CENTER", icon = GetCrestIcon(3290)}, -- Gilded Crest
 		{header = "Key", width = 75, align = "LEFT"}, -- Current Keystone
 		{header = "Done", width = 38, align = "RIGHT"},
+		{header = "", width = 20, align = "CENTER"}, -- Delete button
 	}
 
 	-- Calculate total width
@@ -1399,9 +1474,10 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 	local currentRealm = GetRealmName()
 	local isCurrentChar = (alt.name == currentName and alt.realm == currentRealm)
 
-	-- Use live data for current character instead of snapshot
+	-- Use live data for current character instead of snapshot (don't modify original alt object)
+	local mythicplusData = alt.mythicplus
 	if isCurrentChar and addon.MythicPlusTracker then
-		alt.mythicplus = addon.MythicPlusTracker:GetSnapshotData()
+		mythicplusData = addon.MythicPlusTracker:GetSnapshotData()
 	end
 
 	-- Class colors
@@ -1462,9 +1538,9 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 	ilvlText:SetWidth(columns[3].width)
 	ilvlText:SetJustifyH("CENTER")
 
-	if alt.mythicplus and alt.mythicplus.itemLevel then
-		ilvlText:SetText(tostring(alt.mythicplus.itemLevel))
-		local ilvl = alt.mythicplus.itemLevel
+	if mythicplusData and mythicplusData.itemLevel then
+		ilvlText:SetText(tostring(mythicplusData.itemLevel))
+		local ilvl = mythicplusData.itemLevel
 		if ilvl >= 545 then
 			ilvlText:SetTextColor(0.64, 0.21, 0.93) -- Purple - Myth track
 		elseif ilvl >= 535 then
@@ -1492,8 +1568,8 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 	ratingText:SetWidth(columns[4].width)
 	ratingText:SetJustifyH("CENTER")
 
-	if alt.mythicplus and alt.mythicplus.rating then
-		local rating = alt.mythicplus.rating
+	if mythicplusData and mythicplusData.rating then
+		local rating = mythicplusData.rating
 		ratingText:SetText(tostring(rating))
 		if addon.MythicPlusTracker then
 			local ratingColor = addon.MythicPlusTracker:GetRatingColor(rating)
@@ -1516,9 +1592,9 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 			GameTooltip:SetText(format("%s - M+ Rating: %d", alt.name, rating), 1, 0.82, 0)
 			GameTooltip:AddLine(" ")
 
-			if alt.mythicplus and alt.mythicplus.dungeons then
+			if mythicplusData and mythicplusData.dungeons then
 				-- Show best runs for each dungeon (prioritize timed runs)
-				for dungeonID, dungeonData in pairs(alt.mythicplus.dungeons) do
+				for dungeonID, dungeonData in pairs(mythicplusData.dungeons) do
 					local dungeonName = C_ChallengeMode.GetMapUIInfo(dungeonID) or dungeonData.name or "Unknown"
 
 					-- Get best timed and best overall
@@ -1596,11 +1672,11 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 			GameTooltip:AddLine(" ")
 
 			-- Weekly dungeon runs breakdown
-			if alt.mythicplus and alt.mythicplus.weeklyRuns and #alt.mythicplus.weeklyRuns > 0 then
+			if mythicplusData and mythicplusData.weeklyRuns and #mythicplusData.weeklyRuns > 0 then
 
 				-- Build runs map from weeklyRuns
 				local runsMap = {}
-				for _, run in ipairs(alt.mythicplus.weeklyRuns) do
+				for _, run in ipairs(mythicplusData.weeklyRuns) do
 					local mapID = run.mapID
 					if not runsMap[mapID] then
 						runsMap[mapID] = {
@@ -1860,8 +1936,8 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 	keyText:SetPoint("LEFT", colX, 0)
 	keyText:SetWidth(columns[12].width)
 	keyText:SetJustifyH("LEFT")
-	if alt.mythicplus and alt.mythicplus.currentKey then
-		local key = alt.mythicplus.currentKey
+	if mythicplusData and mythicplusData.currentKey then
+		local key = mythicplusData.currentKey
 		local abbrev = ""
 		for word in string.gmatch(key.name, "%S+") do
 			abbrev = abbrev .. string.sub(word, 1, 1)
@@ -1894,6 +1970,67 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 		doneText:SetTextColor(1, 0.8, 0)
 	else
 		doneText:SetTextColor(0.5, 0.5, 0.5)
+	end
+	colX = colX + columns[13].width
+
+	-- Column 14: Delete button
+	local deleteBtn = CreateFrame("Button", nil, rowBg)
+	deleteBtn:SetSize(16, 16)
+	deleteBtn:SetPoint("LEFT", colX + 2, 0)
+	deleteBtn:SetNormalTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
+	deleteBtn:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
+
+	-- Create key for this alt
+	local altKey = format("%s-%s", alt.realm, alt.name)
+
+	-- Don't allow deleting current character
+	if isCurrentChar then
+		deleteBtn:SetAlpha(0.3)
+		deleteBtn:SetEnabled(false)
+	else
+		deleteBtn:SetScript("OnClick", function()
+			-- Confirmation with blacklist option
+			StaticPopupDialogs["MIDNIGHTTRACKER_DELETE_ALT"] = {
+				text = format("Delete tracking data for %s?\n\n|cffFFFF00Delete|r - Character will be re-tracked if you log in again\n|cffFF6B6BDelete & Don't Track|r - Character will be blacklisted", alt.name),
+				button1 = "Delete",
+				button2 = "Delete & Don't Track",
+				button3 = "Cancel",
+				OnAccept = function()
+					-- Delete without blacklist
+					if addon.AltManager and addon.AltManager.DeleteAlt then
+						addon.AltManager:DeleteAlt(altKey, false)
+						if addon.Display and addon.Display.UpdateDisplay then
+							addon.Display:UpdateDisplay()
+						end
+					end
+				end,
+				OnAlt = function()
+					-- Delete and blacklist
+					if addon.AltManager and addon.AltManager.DeleteAlt then
+						addon.AltManager:DeleteAlt(altKey, true)
+						if addon.Display and addon.Display.UpdateDisplay then
+							addon.Display:UpdateDisplay()
+						end
+					end
+				end,
+				timeout = 0,
+				whileDead = true,
+				hideOnEscape = true,
+				preferredIndex = 3,
+			}
+			StaticPopup_Show("MIDNIGHTTRACKER_DELETE_ALT")
+		end)
+
+		deleteBtn:SetScript("OnEnter", function(self)
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			GameTooltip:SetText(format("Delete %s", alt.name), 1, 0.82, 0)
+			GameTooltip:AddLine("Remove from alt tracking", 1, 1, 1)
+			GameTooltip:Show()
+		end)
+
+		deleteBtn:SetScript("OnLeave", function()
+			GameTooltip:Hide()
+		end)
 	end
 
 	return yOffset - 18

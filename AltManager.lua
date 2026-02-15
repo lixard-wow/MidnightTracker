@@ -11,6 +11,11 @@ function AltManager:Initialize()
 		addon.db.alts = {}
 	end
 
+	-- Ensure blacklist exists
+	if not addon.db.altBlacklist then
+		addon.db.altBlacklist = {}
+	end
+
 	-- Clean up old snapshots (older than 2 weeks)
 	self:CleanOldSnapshots()
 
@@ -35,6 +40,12 @@ function AltManager:SaveCurrentCharacterSnapshot()
 	end
 
 	local key = format("%s-%s", realm, name)
+
+	-- Check if character is blacklisted
+	if addon.db.altBlacklist and addon.db.altBlacklist[key] then
+		addon.Utils:Debug(format("AltManager: Skipping blacklisted character: %s", key))
+		return
+	end
 
 	-- Gather character data
 	local class, classFilename = UnitClass("player")
@@ -196,6 +207,55 @@ end
 function AltManager:GetAltData(realmChar)
 	if not addon.db or not addon.db.alts then return nil end
 	return addon.db.alts[realmChar]
+end
+
+-- Delete a specific alt (optionally blacklist to prevent re-tracking)
+function AltManager:DeleteAlt(realmChar, addToBlacklist)
+	if not addon.db or not addon.db.alts then return false end
+
+	if addon.db.alts[realmChar] then
+		addon.db.alts[realmChar] = nil
+		addon.Utils:Debug(format("Deleted alt: %s", realmChar))
+
+		-- Optionally add to blacklist
+		if addToBlacklist then
+			self:BlacklistAlt(realmChar)
+		end
+
+		return true
+	end
+
+	return false
+end
+
+-- Add character to blacklist (prevents auto-tracking)
+function AltManager:BlacklistAlt(realmChar)
+	if not addon.db or not addon.db.altBlacklist then
+		addon.db.altBlacklist = {}
+	end
+
+	addon.db.altBlacklist[realmChar] = true
+	addon.Utils:Debug(format("Blacklisted alt: %s", realmChar))
+end
+
+-- Remove character from blacklist (allows tracking again)
+function AltManager:UnblacklistAlt(realmChar)
+	if not addon.db or not addon.db.altBlacklist then return end
+
+	addon.db.altBlacklist[realmChar] = nil
+	addon.Utils:Debug(format("Removed from blacklist: %s", realmChar))
+end
+
+-- Check if character is blacklisted
+function AltManager:IsBlacklisted(realmChar)
+	if not addon.db or not addon.db.altBlacklist then return false end
+	return addon.db.altBlacklist[realmChar] == true
+end
+
+-- Get all blacklisted characters
+function AltManager:GetBlacklist()
+	if not addon.db or not addon.db.altBlacklist then return {} end
+	return addon.db.altBlacklist
 end
 
 -- Get account-wide currency total
