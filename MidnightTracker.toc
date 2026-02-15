@@ -17,6 +17,14 @@ Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 Data.lua
 Core.lua
 Tracker.lua
+WeeklyTracker.lua
+DailyTracker.lua
+UpgradeTracker.lua
+ChecklistGenerator.lua
+AltManager.lua
+CooldownTracker.lua
+MythicPlusTracker.lua
+DungeonTracker.lua
 Minimap.lua
 Display.lua
 Config.lua

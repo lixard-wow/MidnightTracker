@@ -33,6 +33,9 @@ function Minimap:Initialize()
 		OnClick = function(self, button)
 			Minimap:OnClick(button)
 		end,
+		OnTooltipShow = function(tooltip)
+			Minimap:BuildTooltip(tooltip)
+		end,
 	})
 
 	-- Register with LibDBIcon
@@ -44,9 +47,16 @@ end
 -- Click handler
 function Minimap:OnClick(button)
 	if button == "LeftButton" then
-		-- Left click: toggle display frame
-		if addon.Display and addon.Display.Toggle then
-			addon.Display:Toggle()
+		if IsShiftKeyDown() then
+			-- Shift+Left click: toggle Panel 2 (Weekly Tracker)
+			if addon.Display and addon.Display.ToggleProgression then
+				addon.Display:ToggleProgression()
+			end
+		else
+			-- Left click: toggle Panel 1 (Currency)
+			if addon.Display and addon.Display.Toggle then
+				addon.Display:Toggle()
+			end
 		end
 	elseif button == "RightButton" then
 		-- Right click: open config panel
@@ -106,9 +116,15 @@ function Minimap:BuildTooltip(tooltip)
 	end
 
 	-- Add instructions
-	tooltip:AddLine(addon.Utils:ColorText("Left-Click:", 0.5, 0.5, 0.5) .. " Toggle Tracker")
-	tooltip:AddLine(addon.Utils:ColorText("Right-Click:", 0.5, 0.5, 0.5) .. " Open Settings")
-	tooltip:AddLine(addon.Utils:ColorText("/mtrack", 0.5, 0.5, 0.5) .. " for commands")
+	tooltip:AddLine(" ")
+	tooltip:AddLine(addon.Utils:ColorText("Click Actions:", 1, 0.82, 0))
+	tooltip:AddLine(addon.Utils:ColorText("Left-Click:", 0.7, 0.7, 0.7) .. " Toggle Panel 1 (Currency)")
+	tooltip:AddLine(addon.Utils:ColorText("Shift+Left-Click:", 0.7, 0.7, 0.7) .. " Toggle Panel 2 (Weekly)")
+	tooltip:AddLine(addon.Utils:ColorText("Right-Click:", 0.7, 0.7, 0.7) .. " Open Settings")
+	tooltip:AddLine(" ")
+	tooltip:AddLine(addon.Utils:ColorText("Commands:", 1, 0.82, 0))
+	tooltip:AddLine(addon.Utils:ColorText("/mtrack", 0.7, 0.7, 0.7) .. " - Show command list")
+	tooltip:AddLine(addon.Utils:ColorText("/mtrack checklist", 0.7, 0.7, 0.7) .. " - Toggle todo list")
 end
 
 -- Add currency line to tooltip

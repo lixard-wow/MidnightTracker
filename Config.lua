@@ -311,7 +311,7 @@ function Config:BuildSettings(parent)
 	local tabs = {}
 	local tabContents = {}
 
-	local tabNames = {"Display", "General", "Expansions"}
+	local tabNames = {"Display", "General", "Expansions", "Weekly", "Checklist"}
 	local tabWidth = 120
 	local tabHeight = 35
 	local tabSpacing = 5
@@ -468,6 +468,12 @@ function Config:BuildSettings(parent)
 
 	-- === TAB 3: EXPANSIONS ===
 	self:BuildExpansionsSettings(tabContents[3])
+
+	-- === TAB 4: WEEKLY & PROGRESSION ===
+	self:BuildWeeklyProgressionSettings(tabContents[4])
+
+	-- === TAB 5: CHECKLIST & ALTS ===
+	self:BuildChecklistAltsSettings(tabContents[5])
 end
 
 function Config:BuildDisplaySettings(parent)
@@ -870,4 +876,222 @@ function Config:Toggle()
 	else
 		self:Show()
 	end
+end
+
+-- ============================================================================
+-- TAB 4: WEEKLY & PROGRESSION SETTINGS
+-- ============================================================================
+
+function Config:BuildWeeklyProgressionSettings(parent)
+	local yOffset = -20
+
+	-- Section title
+	local title = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	title:SetPoint("TOPLEFT", 10, yOffset)
+	title:SetText("Weekly & Progression Tracking")
+	title:SetTextColor(0.56, 0.63, 0.53)
+	yOffset = yOffset - 35
+
+	-- Show Weekly Reset Timer
+	local weeklyResetCheck = CreateCustomCheckbox(parent, "Show Weekly Reset Timer", addon.db.settings.showWeeklyResets)
+	weeklyResetCheck:SetPoint("TOPLEFT", 10, yOffset)
+	weeklyResetCheck:SetCallback(function(checked)
+		addon.db.settings.showWeeklyResets = checked
+		if addon.Display and addon.Display.UpdateDisplay then
+			addon.Display:UpdateDisplay()
+		end
+	end)
+	yOffset = yOffset - 35
+
+	-- Show Raid Lockouts
+	local raidLockoutsCheck = CreateCustomCheckbox(parent, "Show Raid Lockouts", addon.db.settings.showRaidLockouts)
+	raidLockoutsCheck:SetPoint("TOPLEFT", 10, yOffset)
+	raidLockoutsCheck:SetCallback(function(checked)
+		addon.db.settings.showRaidLockouts = checked
+		if addon.Display and addon.Display.UpdateDisplay then
+			addon.Display:UpdateDisplay()
+		end
+	end)
+	yOffset = yOffset - 35
+
+	-- Show World Boss Status
+	local worldBossCheck = CreateCustomCheckbox(parent, "Show World Boss Status", addon.db.settings.showWorldBosses)
+	worldBossCheck:SetPoint("TOPLEFT", 10, yOffset)
+	worldBossCheck:SetCallback(function(checked)
+		addon.db.settings.showWorldBosses = checked
+		if addon.Display and addon.Display.UpdateDisplay then
+			addon.Display:UpdateDisplay()
+		end
+	end)
+	yOffset = yOffset - 35
+
+	-- Show Upgrade Context
+	local upgradeContextCheck = CreateCustomCheckbox(parent, "Show Upgrade Context", addon.db.settings.showUpgradeContext)
+	upgradeContextCheck:SetPoint("TOPLEFT", 10, yOffset)
+	upgradeContextCheck:SetCallback(function(checked)
+		addon.db.settings.showUpgradeContext = checked
+		if addon.Display and addon.Display.UpdateDisplay then
+			addon.Display:UpdateDisplay()
+		end
+	end)
+	yOffset = yOffset - 35
+
+	-- Warn About Wasted Upgrades
+	local wasteWarningCheck = CreateCustomCheckbox(parent, "Warn About Wasted Upgrades", addon.db.settings.warnWastedUpgrades)
+	wasteWarningCheck:SetPoint("TOPLEFT", 10, yOffset)
+	wasteWarningCheck:SetCallback(function(checked)
+		addon.db.settings.warnWastedUpgrades = checked
+		if addon.Display and addon.Display.UpdateDisplay then
+			addon.Display:UpdateDisplay()
+		end
+	end)
+	yOffset = yOffset - 35
+
+	-- Show Cooldowns
+	local cooldownsCheck = CreateCustomCheckbox(parent, "Show Cooldowns", addon.db.settings.showCooldowns)
+	cooldownsCheck:SetPoint("TOPLEFT", 10, yOffset)
+	cooldownsCheck:SetCallback(function(checked)
+		addon.db.settings.showCooldowns = checked
+		if addon.Display and addon.Display.UpdateDisplay then
+			addon.Display:UpdateDisplay()
+		end
+	end)
+	yOffset = yOffset - 35
+
+	-- Help text
+	local helpText = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	helpText:SetPoint("TOPLEFT", 10, yOffset)
+	helpText:SetPoint("RIGHT", -10, 0)
+	helpText:SetJustifyH("LEFT")
+	helpText:SetText("These settings control which weekly reset and progression features are shown in the main display.")
+	helpText:SetTextColor(0.7, 0.7, 0.7)
+	helpText:SetSpacing(3)
+end
+
+-- ============================================================================
+-- TAB 5: CHECKLIST & ALTS SETTINGS
+-- ============================================================================
+
+function Config:BuildChecklistAltsSettings(parent)
+	local yOffset = -20
+
+	-- Section title
+	local title = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	title:SetPoint("TOPLEFT", 10, yOffset)
+	title:SetText("Checklist & Alt Dashboard")
+	title:SetTextColor(0.56, 0.63, 0.53)
+	yOffset = yOffset - 35
+
+	-- Checklist subsection
+	local checklistTitle = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	checklistTitle:SetPoint("TOPLEFT", 10, yOffset)
+	checklistTitle:SetText("Smart Checklist Settings")
+	checklistTitle:SetTextColor(0.95, 0.95, 0.95)
+	yOffset = yOffset - 30
+
+	-- Show Smart Checklist
+	local checklistCheck = CreateCustomCheckbox(parent, "Show Smart Checklist", addon.db.settings.showChecklist)
+	checklistCheck:SetPoint("TOPLEFT", 20, yOffset)
+	checklistCheck:SetCallback(function(checked)
+		addon.db.settings.showChecklist = checked
+		addon.db.display.showChecklist = checked
+		if checked and addon.Display and addon.Display.ShowChecklist then
+			addon.Display:ShowChecklist()
+		elseif not checked and addon.Display and addon.Display.HideChecklist then
+			addon.Display:HideChecklist()
+		end
+	end)
+	yOffset = yOffset - 35
+
+	-- Auto-Hide Completed Tasks
+	local autoHideCheck = CreateCustomCheckbox(parent, "Auto-Hide Completed Tasks", addon.db.settings.autoHideCompleted)
+	autoHideCheck:SetPoint("TOPLEFT", 20, yOffset)
+	autoHideCheck:SetCallback(function(checked)
+		addon.db.settings.autoHideCompleted = checked
+		if addon.Display and addon.Display.UpdateChecklist then
+			addon.Display:UpdateChecklist()
+		end
+	end)
+	yOffset = yOffset - 35
+
+	-- Priority Order label
+	local priorityLabel = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	priorityLabel:SetPoint("TOPLEFT", 20, yOffset)
+	priorityLabel:SetText("Task Sort Order:")
+	priorityLabel:SetTextColor(0.95, 0.95, 0.95)
+
+	-- Priority dropdown buttons
+	local priorityValue = CreateCustomButton(parent, 120, 25, addon.db.settings.checklistPriority == "alphabetical" and "Alphabetical" or "Priority")
+	priorityValue:SetPoint("LEFT", priorityLabel, "RIGHT", 10, 0)
+	priorityValue:SetScript("OnClick", function(self)
+		-- Toggle between value and alphabetical
+		if addon.db.settings.checklistPriority == "value" then
+			addon.db.settings.checklistPriority = "alphabetical"
+			self.text:SetText("Alphabetical")
+		else
+			addon.db.settings.checklistPriority = "value"
+			self.text:SetText("Priority")
+		end
+		if addon.Display and addon.Display.UpdateChecklist then
+			addon.Display:UpdateChecklist()
+		end
+	end)
+	yOffset = yOffset - 45
+
+	-- Alt Dashboard subsection
+	local altTitle = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	altTitle:SetPoint("TOPLEFT", 10, yOffset)
+	altTitle:SetText("Alt Dashboard Settings")
+	altTitle:SetTextColor(0.95, 0.95, 0.95)
+	yOffset = yOffset - 30
+
+	-- Alt Sort Order label
+	local altSortLabel = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	altSortLabel:SetPoint("TOPLEFT", 20, yOffset)
+	altSortLabel:SetText("Alt Sort Order:")
+	altSortLabel:SetTextColor(0.95, 0.95, 0.95)
+
+	-- Alt sort dropdown buttons
+	local sortOrders = {
+		{key = "completion", label = "Completion %"},
+		{key = "name", label = "Name"},
+		{key = "vault", label = "Vault Progress"},
+	}
+	local currentSort = addon.db.settings.altSortOrder or "completion"
+	local currentLabel = "Completion %"
+	for _, order in ipairs(sortOrders) do
+		if order.key == currentSort then
+			currentLabel = order.label
+			break
+		end
+	end
+
+	local altSortValue = CreateCustomButton(parent, 120, 25, currentLabel)
+	altSortValue:SetPoint("LEFT", altSortLabel, "RIGHT", 10, 0)
+	altSortValue:SetScript("OnClick", function(self)
+		-- Cycle through sort orders
+		local currentIndex = 1
+		for i, order in ipairs(sortOrders) do
+			if order.key == addon.db.settings.altSortOrder then
+				currentIndex = i
+				break
+			end
+		end
+		local nextIndex = (currentIndex % #sortOrders) + 1
+		addon.db.settings.altSortOrder = sortOrders[nextIndex].key
+		self.text:SetText(sortOrders[nextIndex].label)
+		if addon.Display and addon.Display.UpdateDisplay then
+			addon.Display:UpdateDisplay()
+		end
+	end)
+	yOffset = yOffset - 45
+
+	-- Help text
+	local helpText = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	helpText:SetPoint("TOPLEFT", 10, yOffset)
+	helpText:SetPoint("RIGHT", -10, 0)
+	helpText:SetJustifyH("LEFT")
+	helpText:SetText("The checklist generates priority tasks from your weekly progress. Use /mtrack checklist to toggle it. The alt dashboard shows all characters' weekly progress - use /mtrack alts to switch views.")
+	helpText:SetTextColor(0.7, 0.7, 0.7)
+	helpText:SetSpacing(3)
 end

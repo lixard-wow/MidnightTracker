@@ -42,18 +42,24 @@ addon.Data.Currencies = {
 
 	-- War Within (includes Season 3)
 	[CATEGORY.WARWITHIN] = {
-		-- Season 3 Upgrade Materials
+		-- === UPGRADE MATERIALS ===
+		-- Valorstones
 		{3008, "Valorstones", nil, 5872034},
+		-- Crests (in quality order)
 		{3285, "Weathered Ethereal Crest", nil, 5927678},
 		{3288, "Carved Ethereal Crest", nil, 5927679},
 		{3289, "Runed Ethereal Crest", nil, 5927680},
 		{3290, "Gilded Ethereal Crest", nil, 5927681},
+
+		-- === WEEKLY CURRENCIES ===
+		{2815, "Resonance Crystals", 3000, 5899503},
+
+		-- === SPECIAL CURRENCIES ===
 		{3028, "Restored Coffer Key", nil, 237446},
 		{3056, "Kej", nil, 5899557},
 		{2803, "Undercoin", nil, 2065568},
-		-- Weekly
-		{2815, "Resonance Crystals", 3000, 5899503},
-		-- Zone Currencies
+
+		-- === ZONE CURRENCIES ===
 		{3089, "Residual Memories", nil, 5899501},
 		{3090, "Flame-Blessed Iron", nil, 133224},
 		{3093, "Nerub-ar Finery", nil, 134532},
@@ -61,6 +67,15 @@ addon.Data.Currencies = {
 		{3226, "Market Research", nil, 134332},
 		{3149, "Displaced Corrupted Mementos", nil, 237282},
 		{3303, "Untethered Coin", nil, 133784},
+
+		-- === CRAFTING MATERIALS ===
+		{3269, "Ethereal Voidsplinter", nil, nil},
+		{3116, "Essence of Kaja'mite", nil, nil},
+		{2813, "Harmonized Silk", nil, nil},
+		{2533, "Renascent Shadowflame", nil, nil},
+
+		-- === CATALYST ===
+		{2796, "Renascent Dream", nil, nil},
 	},
 
 	[CATEGORY.PVP] = {

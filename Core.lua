@@ -31,16 +31,34 @@ local defaults = {
 		fontSize = "normal", -- small, normal, large
 		-- Spacing
 		iconSpacing = 52,
+		-- NEW: View mode and layout
+		viewMode = "current", -- "current" or "alts"
+		showChecklist = false, -- Hidden by default, toggle with /mtrack checklist
+		checklistPos = {point = "CENTER", x = 0, y = 0},
+		progressionPos = {point = "TOPRIGHT", relativePoint = "TOPRIGHT", x = -20, y = -400},
+		collapsedSections = {}, -- Track collapsed state per section
 	},
 	settings = {
 		showZeroCurrencies = false,
 		showUndiscovered = false,
 		filterByZone = true, -- Only show currencies relevant to current zone
-		-- Great Vault
-		showGreatVault = true,
+		-- Great Vault (shown in Weekly Tracker window, not currency display)
+		showGreatVault = false,
 		showVaultRaid = true,
 		showVaultMythicPlus = true,
 		showVaultWorld = true,
+		-- NEW: Weekly & Progression
+		showWeeklyResets = false,
+		showRaidLockouts = true,  -- Show in Weekly Tracker window
+		showWorldBosses = true,   -- Show in Weekly Tracker window
+		showUpgradeContext = false,
+		warnWastedUpgrades = true,
+		showCooldowns = true,     -- Show in Weekly Tracker window
+		-- NEW: Checklist & Alts
+		showChecklist = false, -- Checklist window hidden by default
+		autoHideCompleted = true,
+		checklistPriority = "value", -- "value" or "alphabetical"
+		altSortOrder = "completion", -- "completion", "name", or "vault"
 		categories = {
 			showMidnight = true,
 			showWarWithin = true,
@@ -61,6 +79,12 @@ local defaults = {
 			-- Empty by default, all enabled unless specified
 		},
 	},
+	-- NEW: Upgrade tracking data
+	upgrades = {
+		slots = {},
+	},
+	-- NEW: Account-wide alt data
+	alts = {},
 }
 
 -- Initialize saved variables with defaults
@@ -108,6 +132,51 @@ eventHandlers.PLAYER_LOGIN = function()
 		addon.Display:Initialize()
 	end
 
+	-- Initialize weekly tracker
+	if addon.WeeklyTracker and addon.WeeklyTracker.Initialize then
+		addon.WeeklyTracker:Initialize()
+	end
+
+	-- Initialize daily tracker
+	if addon.DailyTracker and addon.DailyTracker.Initialize then
+		addon.DailyTracker:Initialize()
+	end
+
+	-- Initialize upgrade tracker
+	if addon.UpgradeTracker and addon.UpgradeTracker.Initialize then
+		addon.UpgradeTracker:Initialize()
+	end
+
+	-- Initialize cooldown tracker
+	if addon.CooldownTracker and addon.CooldownTracker.Initialize then
+		addon.CooldownTracker:Initialize()
+	end
+
+	-- Initialize M+ tracker
+	if addon.MythicPlusTracker and addon.MythicPlusTracker.Initialize then
+		addon.MythicPlusTracker:Initialize()
+	end
+
+	-- Initialize dungeon tracker
+	if addon.DungeonTracker and addon.DungeonTracker.Initialize then
+		addon.DungeonTracker:Initialize()
+	end
+
+	-- Initialize checklist generator
+	if addon.ChecklistGenerator and addon.ChecklistGenerator.Initialize then
+		addon.ChecklistGenerator:Initialize()
+	end
+
+	-- Initialize alt manager
+	if addon.AltManager and addon.AltManager.Initialize then
+		addon.AltManager:Initialize()
+	end
+
+	-- Request WoW Token price update
+	if C_WowTokenPublic and C_WowTokenPublic.UpdateMarketPrice then
+		C_WowTokenPublic.UpdateMarketPrice()
+	end
+
 	-- Print welcome message
 	print(format("|cff00ff00%s|r v%s loaded. Type /mtrack for commands.", addon.name, addon.version))
 end
@@ -125,6 +194,10 @@ eventHandlers.WEEKLY_REWARDS_UPDATE = function()
 	if addon.Tracker and addon.Tracker.UpdateAllCurrencies then
 		addon.Tracker:UpdateAllCurrencies()
 	end
+	-- Also update vault progress when weekly rewards update
+	if addon.WeeklyTracker and addon.WeeklyTracker.UpdateVaultProgress then
+		addon.WeeklyTracker:UpdateVaultProgress()
+	end
 end
 
 -- PLAYER_MONEY: Fired when player money changes (in case we track gold)
@@ -136,6 +209,92 @@ end
 eventHandlers.QUEST_LOG_UPDATE = function()
 	if addon.Tracker and addon.Tracker.OnQuestUpdate then
 		addon.Tracker:OnQuestUpdate()
+	end
+	if addon.WeeklyTracker and addon.WeeklyTracker.UpdateWorldBosses then
+		addon.WeeklyTracker:UpdateWorldBosses()
+	end
+end
+
+-- QUEST_TURNED_IN: Fired when a quest is completed
+eventHandlers.QUEST_TURNED_IN = function(questID, xpReward, moneyReward)
+	if addon.DailyTracker and addon.DailyTracker.OnQuestTurnedIn then
+		addon.DailyTracker:OnQuestTurnedIn(questID)
+	end
+end
+
+-- UPDATE_INSTANCE_INFO: Fired when raid lockout info is available
+eventHandlers.UPDATE_INSTANCE_INFO = function()
+	if addon.WeeklyTracker and addon.WeeklyTracker.UpdateRaidLockouts then
+		addon.WeeklyTracker:UpdateRaidLockouts()
+	end
+end
+
+-- ENCOUNTER_END: Fired when an encounter (boss fight) ends
+eventHandlers.ENCOUNTER_END = function(encounterID, encounterName, difficultyID, groupSize, success)
+	if addon.WeeklyTracker and addon.WeeklyTracker.OnEncounterEnd then
+		addon.WeeklyTracker:OnEncounterEnd(encounterID, encounterName, difficultyID, groupSize, success)
+	end
+	-- Also update vault progress after boss kills
+	if addon.WeeklyTracker and addon.WeeklyTracker.UpdateVaultProgress then
+		addon.WeeklyTracker:UpdateVaultProgress()
+	end
+end
+
+-- PLAYER_EQUIPMENT_CHANGED: Fired when player equips/unequips items
+eventHandlers.PLAYER_EQUIPMENT_CHANGED = function(slot, equipped)
+	if addon.UpgradeTracker and addon.UpgradeTracker.UpdateSlot then
+		addon.UpgradeTracker:UpdateSlot(slot)
+	end
+
+	-- Update item level for M+ tracker
+	if addon.MythicPlusTracker and addon.MythicPlusTracker.OnEquipmentChanged then
+		addon.MythicPlusTracker:OnEquipmentChanged()
+	end
+end
+
+-- CHALLENGE_MODE_COMPLETED: Fired when M+ dungeon is completed
+eventHandlers.CHALLENGE_MODE_COMPLETED = function()
+	if addon.MythicPlusTracker and addon.MythicPlusTracker.OnChallengeCompleted then
+		-- Get completion info
+		local mapID = C_ChallengeMode.GetActiveChallengeMapID()
+		local level = C_ChallengeMode.GetActiveKeystoneInfo()
+		addon.MythicPlusTracker:OnChallengeCompleted(mapID, level, true)
+	end
+end
+
+-- SPELL_UPDATE_COOLDOWN: Fired when spell cooldowns update
+eventHandlers.SPELL_UPDATE_COOLDOWN = function()
+	if addon.CooldownTracker and addon.CooldownTracker.UpdateCooldowns then
+		addon.CooldownTracker:UpdateCooldowns()
+	end
+end
+
+-- UNIT_SPELLCAST_SUCCEEDED: Fired when player successfully casts a spell
+eventHandlers.UNIT_SPELLCAST_SUCCEEDED = function(unitTarget, castGUID, spellID)
+	if unitTarget == "player" and addon.CooldownTracker and addon.CooldownTracker.OnSpellCast then
+		addon.CooldownTracker:OnSpellCast(spellID)
+	end
+end
+
+-- PLAYER_LOGOUT: Fired when player logs out
+eventHandlers.PLAYER_LOGOUT = function()
+	if addon.AltManager and addon.AltManager.SaveCurrentCharacterSnapshot then
+		addon.AltManager:SaveCurrentCharacterSnapshot()
+	end
+end
+
+-- PLAYER_LEAVING_WORLD: Fired when switching characters or logging out (backup save)
+eventHandlers.PLAYER_LEAVING_WORLD = function()
+	if addon.AltManager and addon.AltManager.SaveCurrentCharacterSnapshot then
+		addon.AltManager:SaveCurrentCharacterSnapshot()
+	end
+end
+
+-- PLAYER_UPDATE_RESTING: Fired when resting state changes (entering/leaving cities)
+eventHandlers.PLAYER_UPDATE_RESTING = function()
+	-- Auto-hide Panel 1 (currency) when leaving cities
+	if addon.Display and addon.Display.UpdateCityVisibility then
+		addon.Display:UpdateCityVisibility()
 	end
 end
 
@@ -315,15 +474,42 @@ SlashCmdList["MIDNIGHTTRACKER"] = function(msg)
 		print(" ")
 		print(format("Show Zero Currencies: %s", addon.db.settings.showZeroCurrencies and "ON" or "OFF"))
 		print(format("Filter by Zone: %s", addon.db.settings.filterByZone and "ON" or "OFF"))
+	elseif msg == "checklist" then
+		if addon.Display and addon.Display.ToggleChecklist then
+			addon.Display:ToggleChecklist()
+		end
+	elseif msg == "panel2" or msg == "weekly" or msg == "progression" then
+		if addon.Display and addon.Display.ToggleProgression then
+			addon.Display:ToggleProgression()
+		end
+	elseif msg == "alts" then
+		if addon.Display and addon.Display.ToggleViewMode then
+			-- Toggle to alt dashboard view
+			addon.db.display.viewMode = "alts"
+			addon.Display:UpdateDisplay()
+			addon.Utils:Print("Switched to Alt Dashboard view")
+		end
+	elseif msg == "current" then
+		if addon.Display and addon.Display.ToggleViewMode then
+			-- Toggle to current character view
+			addon.db.display.viewMode = "current"
+			addon.Display:UpdateDisplay()
+			addon.Utils:Print("Switched to Current Character view")
+		end
 	elseif msg == "config" or msg == "options" then
 		if addon.Config and addon.Config.Toggle then
 			addon.Config:Toggle()
 		end
 	else
 		addon.Utils:Print("Commands:")
-		print("  /mtrack show - Show on-screen display")
-		print("  /mtrack hide - Hide on-screen display")
-		print("  /mtrack toggle - Toggle on-screen display")
+		print("  /mtrack show - Show Panel 1 (Currency)")
+		print("  /mtrack hide - Hide Panel 1 (Currency)")
+		print("  /mtrack toggle - Toggle Panel 1 (Currency)")
+		print("  /mtrack panel2 - Toggle Panel 2 (Weekly Tracker)")
+		print("  /mtrack weekly - Toggle Panel 2 (Weekly Tracker)")
+		print("  /mtrack checklist - Toggle smart checklist window")
+		print("  /mtrack alts - Switch to alt dashboard view")
+		print("  /mtrack current - Switch to current character view")
 		print("  /mtrack showzero - Toggle showing currencies with 0 amount")
 		print("  /mtrack minimap show - Show minimap icon")
 		print("  /mtrack minimap hide - Hide minimap icon")

@@ -147,26 +147,44 @@ function Tracker:GetGreatVaultProgress()
 	if not activities then return nil end
 
 	local progress = {
-		raid = {current = 0, max = 8, thresholds = {2, 4, 8}, level = 0},
-		mythicplus = {current = 0, max = 8, thresholds = {2, 4, 8}, level = 0},
-		world = {current = 0, max = 8, thresholds = {2, 4, 8}, level = 0},
+		raid = {current = 0, max = 8, thresholds = {2, 4, 8}, levels = {0, 0, 0}},
+		mythicplus = {current = 0, max = 8, thresholds = {2, 4, 8}, levels = {0, 0, 0}},
+		world = {current = 0, max = 8, thresholds = {2, 4, 8}, levels = {0, 0, 0}},
 	}
 
-	-- Parse activities and count progress
+	-- Group activities by type
+	local raidActivities = {}
+	local mplusActivities = {}
+	local worldActivities = {}
+
 	for _, activityInfo in ipairs(activities) do
 		if activityInfo.type == Enum.WeeklyRewardChestThresholdType.Raid then
+			table.insert(raidActivities, activityInfo)
 			progress.raid.current = activityInfo.progress or 0
-			progress.raid.level = math.max(progress.raid.level, activityInfo.level or 0)
 		elseif activityInfo.type == Enum.WeeklyRewardChestThresholdType.Activities then
-			-- Mythic+ dungeons
+			table.insert(mplusActivities, activityInfo)
 			progress.mythicplus.current = activityInfo.progress or 0
-			progress.mythicplus.level = math.max(progress.mythicplus.level, activityInfo.level or 0)
 		elseif activityInfo.type == Enum.WeeklyRewardChestThresholdType.World then
-			-- World activities (including delves)
+			table.insert(worldActivities, activityInfo)
 			progress.world.current = activityInfo.progress or 0
-			progress.world.level = math.max(progress.world.level, activityInfo.level or 0)
 		end
 	end
+
+	-- Sort by threshold and assign to slots
+	local function assignLevels(activityList, progressData)
+		table.sort(activityList, function(a, b)
+			return (a.threshold or 0) < (b.threshold or 0)
+		end)
+		for i, activity in ipairs(activityList) do
+			if i <= 3 then
+				progressData.levels[i] = activity.level or 0
+			end
+		end
+	end
+
+	assignLevels(raidActivities, progress.raid)
+	assignLevels(mplusActivities, progress.mythicplus)
+	assignLevels(worldActivities, progress.world)
 
 	return progress
 end
