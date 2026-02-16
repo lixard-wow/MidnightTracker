@@ -5,19 +5,49 @@ addon.CooldownTracker = {}
 local CooldownTracker = addon.CooldownTracker
 
 -- Constants
-local CATALYST_CURRENCY_ID = 2796 -- Renascent Dream (Catalyst Charges)
+local CATALYST_CURRENCY_ID = 3269 -- Ethereal Voidsplinter (TWW Season 3 Catalyst Charges)
 
 -- Cache for cooldown data
 CooldownTracker.catalystCharges = 0
-CooldownTracker.catalystMaxCharges = 6
+CooldownTracker.catalystMaxCharges = 8 -- Season 3 increased max to 8
 CooldownTracker.nextCatalystCharge = 0
 CooldownTracker.craftingCooldowns = {}
 CooldownTracker.lastUpdate = 0
 
--- Known crafting cooldown spell IDs (examples - would need to populate with actual spell IDs)
+-- Known crafting cooldown spell IDs for The War Within / Midnight
+-- NOTE: Most TWW professions use Knowledge Points instead of traditional daily cooldowns
+-- Add spell IDs as you discover them in-game or from databases like Wowhead
 local CRAFTING_COOLDOWN_SPELLS = {
-	-- Profession cooldowns would go here
-	-- Example: {spellID = 12345, name = "Transmute: Living Steel", profession = "Alchemy"}
+	-- === ALCHEMY (The War Within) ===
+	{spellID = 430624, name = "Gleaming Glory", profession = "Alchemy", cooldown = "24h"},
+	-- Other transmutes: Gleaming Chaos, Gleaming Devotion, Gleaming Fury, etc.
+	-- {spellID = 0, name = "Gleaming Chaos", profession = "Alchemy", cooldown = "24h"},
+
+	-- === BLACKSMITHING (The War Within) ===
+	-- {spellID = 0, name = "Everburning Ignition", profession = "Blacksmithing", cooldown = "24h"},
+
+	-- === TAILORING (The War Within) ===
+	-- Cooldown cloth transmutes exist but spell IDs need to be added
+	-- {spellID = 0, name = "[Tailoring Cooldown]", profession = "Tailoring", cooldown = "24h"},
+
+	-- === ENGINEERING (The War Within) ===
+	-- Invent has a 24-hour cooldown
+	-- {spellID = 0, name = "Invent", profession = "Engineering", cooldown = "24h"},
+
+	-- === ENCHANTING (The War Within) ===
+	-- {spellID = 0, name = "[Enchanting Cooldown]", profession = "Enchanting", cooldown = "24h"},
+
+	-- === JEWELCRAFTING (The War Within) ===
+	-- {spellID = 0, name = "[Jewelcrafting Cooldown]", profession = "Jewelcrafting", cooldown = "24h"},
+
+	-- === INSCRIPTION (The War Within) ===
+	-- {spellID = 0, name = "[Inscription Cooldown]", profession = "Inscription", cooldown = "24h"},
+
+	-- === LEATHERWORKING (The War Within) ===
+	-- {spellID = 0, name = "[Leatherworking Cooldown]", profession = "Leatherworking", cooldown = "24h"},
+
+	-- === MIDNIGHT PROFESSIONS ===
+	-- Add Midnight profession cooldowns when expansion launches and spell IDs become available
 }
 
 -- Initialize cooldown tracker
@@ -48,7 +78,7 @@ function CooldownTracker:UpdateCatalystCharges()
 	local info = C_CurrencyInfo.GetCurrencyInfo(CATALYST_CURRENCY_ID)
 	if info then
 		self.catalystCharges = info.quantity or 0
-		self.catalystMaxCharges = info.maxQuantity or 6
+		self.catalystMaxCharges = info.maxQuantity or 8 -- Default to 8 if API doesn't return max
 
 		-- Calculate next charge time (weekly reset)
 		-- Catalyst charges are gained weekly
@@ -100,26 +130,43 @@ end
 function CooldownTracker:UpdateCooldowns()
 	if not C_Spell or not C_Spell.GetSpellCooldown then return end
 
+	-- Skip update during combat to avoid taint issues with protected spell data
+	if InCombatLockdown() then return end
+
 	self.craftingCooldowns = {}
 
 	for _, spellInfo in ipairs(CRAFTING_COOLDOWN_SPELLS) do
-		local cooldownInfo = C_Spell.GetSpellCooldown(spellInfo.spellID)
+		-- Use pcall to safely handle any taint issues
+		local success, cooldownInfo = pcall(C_Spell.GetSpellCooldown, spellInfo.spellID)
 
-		if cooldownInfo then
+		if success and cooldownInfo then
+			-- Extract values safely
 			local startTime = cooldownInfo.startTime
 			local duration = cooldownInfo.duration
 
-			local ready = (duration == 0)
-			local cooldownEnd = startTime + duration
+			-- Only proceed if we got valid numeric values
+			if type(startTime) == "number" and type(duration) == "number" then
+				local ready = false
+				local cooldownEnd = 0
 
-			self.craftingCooldowns[spellInfo.spellID] = {
-				spellID = spellInfo.spellID,
-				name = spellInfo.name,
-				profession = spellInfo.profession,
-				ready = ready,
-				cooldownEnd = cooldownEnd,
-				timeRemaining = math.max(0, cooldownEnd - GetTime()),
-			}
+				-- Use simple logic without direct comparisons to avoid taint
+				if duration then
+					cooldownEnd = startTime + duration
+					-- Check if cooldown is ready by checking if end time has passed
+					ready = (GetTime() >= cooldownEnd)
+				else
+					ready = true
+				end
+
+				self.craftingCooldowns[spellInfo.spellID] = {
+					spellID = spellInfo.spellID,
+					name = spellInfo.name,
+					profession = spellInfo.profession,
+					ready = ready,
+					cooldownEnd = cooldownEnd,
+					timeRemaining = math.max(0, cooldownEnd - GetTime()),
+				}
+			end
 		end
 	end
 end
