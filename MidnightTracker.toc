@@ -20,6 +20,7 @@ Tracker.lua
 WeeklyTracker.lua
 DailyTracker.lua
 UpgradeTracker.lua
+ConversionTracker.lua
 ChecklistGenerator.lua
 AltManager.lua
 CooldownTracker.lua

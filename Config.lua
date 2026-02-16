@@ -603,7 +603,7 @@ function Config:BuildGeneralSettings(parent)
 	local yOffset = -20
 
 	-- Show zero currencies checkbox
-	local showZeroCheck = CreateCustomCheckbox(parent, "Show currencies with 0 amount", addon.db.settings.showZeroCurrencies or false)
+	local showZeroCheck = CreateCustomCheckbox(parent, "Show currencies/items with 0 count (uncheck to hide when zero)", addon.db.settings.showZeroCurrencies or false)
 	showZeroCheck:SetPoint("TOPLEFT", 10, yOffset)
 	showZeroCheck:SetCallback(function(checked)
 		addon.db.settings.showZeroCurrencies = checked
@@ -618,6 +618,39 @@ function Config:BuildGeneralSettings(parent)
 	showUndiscoveredCheck:SetPoint("TOPLEFT", 10, yOffset)
 	showUndiscoveredCheck:SetCallback(function(checked)
 		addon.db.settings.showUndiscovered = checked
+		if addon.Display then
+			addon.Display:UpdateDisplay()
+		end
+	end)
+	yOffset = yOffset - 30
+
+	-- Abbreviate numbers checkbox
+	local abbreviateCheck = CreateCustomCheckbox(parent, "Abbreviate large numbers (1.5M instead of 1,500,000)", addon.db.settings.abbreviateNumbers ~= false)
+	abbreviateCheck:SetPoint("TOPLEFT", 10, yOffset)
+	abbreviateCheck:SetCallback(function(checked)
+		addon.db.settings.abbreviateNumbers = checked
+		if addon.Display then
+			addon.Display:UpdateDisplay()
+		end
+	end)
+	yOffset = yOffset - 30
+
+	-- Show conversion info checkbox
+	local conversionCheck = CreateCustomCheckbox(parent, "Show conversion info for craftable items (+X Keys)", addon.db.settings.showConversionInfo ~= false)
+	conversionCheck:SetPoint("TOPLEFT", 10, yOffset)
+	conversionCheck:SetCallback(function(checked)
+		addon.db.settings.showConversionInfo = checked
+		if addon.Display then
+			addon.Display:UpdateDisplay()
+		end
+	end)
+	yOffset = yOffset - 30
+
+	-- Show items checkbox
+	local showItemsCheck = CreateCustomCheckbox(parent, "Track items alongside currencies", addon.db.settings.showItems ~= false)
+	showItemsCheck:SetPoint("TOPLEFT", 10, yOffset)
+	showItemsCheck:SetCallback(function(checked)
+		addon.db.settings.showItems = checked
 		if addon.Display then
 			addon.Display:UpdateDisplay()
 		end

@@ -16,6 +16,15 @@ function AltManager:Initialize()
 		addon.db.altBlacklist = {}
 	end
 
+	-- Migrate old crest IDs to new ones (from incorrect fragment IDs)
+	self:MigrateCrestIDs()
+
+	-- Clean up stale M+ data from non-max level characters
+	self:CleanStaleMythicPlusData()
+
+	-- Clean up buggy weekly M+ data (one-time migration)
+	self:CleanBuggyWeeklyRuns()
+
 	-- Clean up old snapshots (older than 2 weeks)
 	self:CleanOldSnapshots()
 
@@ -70,7 +79,7 @@ function AltManager:SaveCurrentCharacterSnapshot()
 	snapshot.currencies = {}
 	if addon.Tracker then
 		-- Get key currencies
-		local keyCurrencies = {2815, 3008, 3285, 3288, 3289, 3290} -- Resonance, Valorstones, Crests
+		local keyCurrencies = {2815, 3008, 3284, 3286, 3288, 3290} -- Resonance, Valorstones, Crests
 		for _, currencyID in ipairs(keyCurrencies) do
 			local cached = addon.Tracker:GetCurrency(currencyID)
 			if cached then
@@ -183,6 +192,90 @@ function AltManager:GetWeekStartTime()
 	return serverTime - (daysSinceReset * 24 * 60 * 60)
 end
 
+-- Migrate old crest IDs to correct ones (one-time migration)
+function AltManager:MigrateCrestIDs()
+	if not addon.db or not addon.db.alts then return end
+
+	-- Old incorrect IDs (fragments) -> New correct IDs (crests)
+	local migrations = {
+		[3285] = 3284, -- Weathered Ethereal Crest
+		[3287] = 3286, -- Carved Ethereal Crest
+		[3289] = 3288, -- Runed Ethereal Crest
+		[3291] = 3290, -- Gilded Ethereal Crest
+	}
+
+	local migrated = 0
+	for key, snapshot in pairs(addon.db.alts) do
+		if snapshot.currencies then
+			for oldID, newID in pairs(migrations) do
+				if snapshot.currencies[oldID] then
+					-- Copy data from old ID to new ID
+					snapshot.currencies[newID] = snapshot.currencies[oldID]
+					-- Remove old ID
+					snapshot.currencies[oldID] = nil
+					migrated = migrated + 1
+				end
+			end
+		end
+	end
+
+	if migrated > 0 then
+		addon.Utils:Debug(format("Migrated %d crest currency entries to correct IDs", migrated))
+	end
+end
+
+-- Clean up stale M+ data from non-max level characters
+function AltManager:CleanStaleMythicPlusData()
+	if not addon.db or not addon.db.alts then return end
+
+	local maxLevel = GetMaxLevelForPlayerExpansion()
+	local cleaned = 0
+
+	for key, snapshot in pairs(addon.db.alts) do
+		-- Clear M+ data for characters below max level
+		if snapshot.level and snapshot.level < maxLevel then
+			if snapshot.mythicplus and (snapshot.mythicplus.weeklyRuns or snapshot.mythicplus.dungeons) then
+				-- Clear out M+ data but keep item level
+				local itemLevel = snapshot.mythicplus and snapshot.mythicplus.itemLevel or 0
+				snapshot.mythicplus = {
+					season = "tww-season-3",
+					rating = 0,
+					itemLevel = itemLevel,
+					currentKey = nil,
+					dungeons = {},
+					weeklyVault = {activities = 0, remaining = 8},
+					weeklyRuns = {}
+				}
+				cleaned = cleaned + 1
+			end
+		end
+	end
+
+	if cleaned > 0 then
+		addon.Utils:Debug(format("Cleaned stale M+ data from %d non-max level characters", cleaned))
+	end
+end
+
+-- Clean up buggy weekly M+ runs (one-time migration)
+-- Fixes issue where all-time runs were incorrectly saved as weekly runs
+function AltManager:CleanBuggyWeeklyRuns()
+	if not addon.db or not addon.db.alts then return end
+
+	local cleaned = 0
+	for key, snapshot in pairs(addon.db.alts) do
+		if snapshot.mythicplus and snapshot.mythicplus.weeklyRuns then
+			-- Clear out the buggy weeklyRuns data
+			-- Characters will get fresh data when they log out
+			snapshot.mythicplus.weeklyRuns = {}
+			cleaned = cleaned + 1
+		end
+	end
+
+	if cleaned > 0 then
+		addon.Utils:Debug(format("Cleaned buggy weekly M+ data from %d character snapshots", cleaned))
+	end
+end
+
 -- Clean up snapshots older than 2 weeks
 function AltManager:CleanOldSnapshots()
 	if not addon.db or not addon.db.alts then return end
@@ -197,10 +290,19 @@ function AltManager:CleanOldSnapshots()
 	end
 end
 
--- Get all alts
+-- Get all alts (excluding blacklisted)
 function AltManager:GetAllAlts()
 	if not addon.db or not addon.db.alts then return {} end
-	return addon.db.alts
+
+	-- Filter out blacklisted characters
+	local filtered = {}
+	for key, data in pairs(addon.db.alts) do
+		if not self:IsBlacklisted(key) then
+			filtered[key] = data
+		end
+	end
+
+	return filtered
 end
 
 -- Get specific alt data
@@ -235,6 +337,13 @@ function AltManager:BlacklistAlt(realmChar)
 	end
 
 	addon.db.altBlacklist[realmChar] = true
+
+	-- Also remove existing snapshot for this character
+	if addon.db.alts and addon.db.alts[realmChar] then
+		addon.db.alts[realmChar] = nil
+		addon.Utils:Debug(format("Removed snapshot for blacklisted character: %s", realmChar))
+	end
+
 	addon.Utils:Debug(format("Blacklisted alt: %s", realmChar))
 end
 

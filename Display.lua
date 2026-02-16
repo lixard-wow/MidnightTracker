@@ -382,24 +382,23 @@ function Display:CreateCompactCurrencyLine(currency, categoryName)
 	local max = currency.max or currency.weeklyMax
 	local amountText = ""
 
-	-- Format with cap if available
+	-- Format with cap if available using centralized abbreviation function
 	if max and max > 0 then
-		-- Compact large numbers
-		if max >= 1000000 then
-			amountText = format("%.1fM/%.1fM", amount / 1000000, max / 1000000)
-		elseif max >= 1000 then
-			amountText = format("%.1fK/%.1fK", amount / 1000, max / 1000)
-		else
-			amountText = format("%d/%d", amount, max)
-		end
+		local amountStr = addon.Utils:AbbreviateNumber(amount)
+		local maxStr = addon.Utils:AbbreviateNumber(max)
+		amountText = format("%s/%s", amountStr, maxStr)
 	else
 		-- No cap, just show amount
-		if amount >= 1000000 then
-			amountText = format("%.1fM", amount / 1000000)
-		elseif amount >= 1000 then
-			amountText = format("%.1fK", amount / 1000)
-		else
-			amountText = tostring(amount)
+		amountText = addon.Utils:AbbreviateNumber(amount)
+	end
+
+	-- Check for conversion info (items that can be converted)
+	local conversionInfo = nil
+	if addon.db.settings.showConversionInfo and currency.id and addon.ConversionTracker then
+		local extraInfo = addon.ConversionTracker:GetExtraInfoText(currency.id)
+		if extraInfo then
+			amountText = format("%s %s", amountText, extraInfo)
+			conversionInfo = addon.ConversionTracker:GetTooltipInfo(currency.id)
 		end
 	end
 
@@ -437,6 +436,15 @@ function Display:CreateCompactCurrencyLine(currency, categoryName)
 
 		if currency.weeklyMax and currency.weeklyMax > 0 and currency.earnedThisWeek then
 			GameTooltip:AddDoubleLine("This Week:", format("%s / %s", addon.Utils:FormatNumber(currency.earnedThisWeek), addon.Utils:FormatNumber(currency.weeklyMax)), 1, 1, 1, 1, 1, 0)
+		end
+
+		-- Add conversion info to tooltip if available
+		if conversionInfo then
+			GameTooltip:AddLine(" ")
+			GameTooltip:AddLine(conversionInfo.line1, 0.5, 1, 0.5)
+			if conversionInfo.line2 then
+				GameTooltip:AddLine(conversionInfo.line2, 0.7, 0.7, 0.7)
+			end
 		end
 
 		GameTooltip:Show()
@@ -1357,20 +1365,20 @@ function Display:UpdateProgressionAltsTab()
 
 	-- Column definitions
 	local columns = {
-		{header = "Character", width = 85, align = "LEFT"},
+		{header = "Character", width = 85, align = "CENTER"},
 		{header = "Lvl", width = 28, align = "CENTER"},
 		{header = "iLvl", width = 35, align = "CENTER"}, -- Item Level
 		{header = "Rating", width = 48, align = "CENTER"}, -- M+ Rating
 		{header = "M+", width = 55, align = "CENTER"}, -- Mythic+ vault
 		{header = "Raid", width = 50, align = "CENTER"}, -- Raid vault
 		{header = "Delve", width = 50, align = "CENTER"}, -- Delve vault
-		{header = "icon", width = 35, align = "CENTER", icon = GetCrestIcon(3285)}, -- Weathered Crest
-		{header = "icon", width = 35, align = "CENTER", icon = GetCrestIcon(3288)}, -- Carved Crest
-		{header = "icon", width = 35, align = "CENTER", icon = GetCrestIcon(3289)}, -- Runed Crest
+		{header = "icon", width = 35, align = "CENTER", icon = GetCrestIcon(3284)}, -- Weathered Crest
+		{header = "icon", width = 35, align = "CENTER", icon = GetCrestIcon(3286)}, -- Carved Crest
+		{header = "icon", width = 35, align = "CENTER", icon = GetCrestIcon(3288)}, -- Runed Crest
 		{header = "icon", width = 35, align = "CENTER", icon = GetCrestIcon(3290)}, -- Gilded Crest
-		{header = "Key", width = 75, align = "LEFT"}, -- Current Keystone
-		{header = "Done", width = 38, align = "RIGHT"},
-		{header = "", width = 20, align = "CENTER"}, -- Delete button
+		{header = "Key", width = 75, align = "CENTER"}, -- Current Keystone
+		{header = "Done", width = 38, align = "CENTER"},
+		{header = "Remove", width = 46, align = "CENTER"}, -- Delete button
 	}
 
 	-- Calculate total width
@@ -1518,7 +1526,7 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 	local nameText = rowBg:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	nameText:SetPoint("LEFT", colX, 0)
 	nameText:SetWidth(columns[1].width)
-	nameText:SetJustifyH("LEFT")
+	nameText:SetJustifyH("CENTER")
 	nameText:SetText(alt.name or "Unknown")
 	nameText:SetTextColor(classColor[1], classColor[2], classColor[3])
 	colX = colX + columns[1].width
@@ -1541,16 +1549,40 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 	if mythicplusData and mythicplusData.itemLevel then
 		ilvlText:SetText(tostring(mythicplusData.itemLevel))
 		local ilvl = mythicplusData.itemLevel
-		if ilvl >= 545 then
-			ilvlText:SetTextColor(0.64, 0.21, 0.93) -- Purple - Myth track
-		elseif ilvl >= 535 then
-			ilvlText:SetTextColor(1, 0.5, 0) -- Orange - Hero track
-		elseif ilvl >= 525 then
-			ilvlText:SetTextColor(0, 0.44, 0.87) -- Blue - Champion track
-		elseif ilvl >= 515 then
-			ilvlText:SetTextColor(0, 1, 0) -- Green - Veteran track
+
+		-- Auto-detect Midnight vs War Within based on item level
+		local isMidnight = (ilvl < 400)
+
+		if isMidnight then
+			-- MIDNIGHT SEASON 1 (203-289)
+			if ilvl >= 276 then
+				ilvlText:SetTextColor(0.64, 0.21, 0.93) -- Purple - Myth track (276-289)
+			elseif ilvl >= 263 then
+				ilvlText:SetTextColor(1, 0.5, 0) -- Orange - Hero track (263-276)
+			elseif ilvl >= 250 then
+				ilvlText:SetTextColor(0, 0.44, 0.87) -- Blue - Champion track (250-263)
+			elseif ilvl >= 237 then
+				ilvlText:SetTextColor(0, 1, 0) -- Green - Veteran track (237-250)
+			elseif ilvl >= 224 then
+				ilvlText:SetTextColor(1, 1, 1) -- White - Adventurer track (224-237)
+			else
+				ilvlText:SetTextColor(0.6, 0.6, 0.6) -- Gray - Explorer track (203-226)
+			end
 		else
-			ilvlText:SetTextColor(0.6, 0.6, 0.6) -- Gray - Adventurer track
+			-- WAR WITHIN SEASON 3 (642-723)
+			if ilvl >= 707 then
+				ilvlText:SetTextColor(0.64, 0.21, 0.93) -- Purple - Myth track (707-723)
+			elseif ilvl >= 694 then
+				ilvlText:SetTextColor(1, 0.5, 0) -- Orange - Hero track (694-710)
+			elseif ilvl >= 681 then
+				ilvlText:SetTextColor(0, 0.44, 0.87) -- Blue - Champion track (681-704)
+			elseif ilvl >= 668 then
+				ilvlText:SetTextColor(0, 1, 0) -- Green - Veteran track (668-691)
+			elseif ilvl >= 655 then
+				ilvlText:SetTextColor(1, 1, 1) -- White - Adventurer track (655-678)
+			else
+				ilvlText:SetTextColor(0.6, 0.6, 0.6) -- Gray - Explorer track (642-665)
+			end
 		end
 	else
 		ilvlText:SetText("-")
@@ -1686,7 +1718,8 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 					end
 					table.insert(runsMap[mapID].runs, {
 						level = run.level,
-						completed = run.completed
+						completed = run.completed,
+						upgradeLevel = run.upgradeLevel or 0
 					})
 				end
 
@@ -1698,14 +1731,26 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 						dungeonName = C_ChallengeMode.GetMapUIInfo(mapID) or dungeonName
 					end
 
-					-- Build run text with color coding
+					-- Build run text with color coding and chest indicators
 					local runText = ""
 					for i, run in ipairs(data.runs) do
 						if i > 1 then runText = runText .. ", " end
 
+						-- Build chest indicator (+/++/+++)
+						local chestIndicator = ""
+						if run.completed and run.upgradeLevel then
+							if run.upgradeLevel == 3 then
+								chestIndicator = "+++"
+							elseif run.upgradeLevel == 2 then
+								chestIndicator = "++"
+							elseif run.upgradeLevel == 1 then
+								chestIndicator = "+"
+							end
+						end
+
 						-- Color code: green if timed, red if overtime
 						if run.completed then
-							runText = runText .. "|cFF00FF00" .. tostring(run.level) .. "|r"
+							runText = runText .. "|cFF00FF00" .. tostring(run.level) .. chestIndicator .. "|r"
 						else
 							runText = runText .. "|cFFFF0000" .. tostring(run.level) .. "|r"
 						end
@@ -1791,7 +1836,7 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 				for instanceID, data in pairs(raidsByInstance) do
 					local lockout = data.lockout
 					local diffID = data.diffID
-					local raidName = lockout.instanceName or "Unknown Raid"
+					local raidName = lockout.name or lockout.instanceName or "Unknown Raid"
 					local diffName = diffID == 17 and "L" or (diffID == 14 and "N" or (diffID == 15 and "H" or "M"))
 					local progress = format("%d/%d", lockout.encounterProgress or 0, lockout.numEncounters or 0)
 
@@ -1871,14 +1916,14 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 	table.insert(progressionFrames, delveFrame)
 	colX = colX + columns[7].width
 
-	-- Column 8: Weathered Crest (3285)
+	-- Column 8: Weathered Crest (3284)
 	local weatheredText = rowBg:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	weatheredText:SetPoint("LEFT", colX, 0)
 	weatheredText:SetWidth(columns[8].width)
 	weatheredText:SetJustifyH("CENTER")
-	if alt.currencies and alt.currencies[3285] then
-		local amount = alt.currencies[3285].amount or 0
-		weatheredText:SetText(tostring(amount))
+	if alt.currencies and alt.currencies[3284] then
+		local amount = alt.currencies[3284].amount or 0
+		weatheredText:SetText(addon.Utils:AbbreviateNumber(amount))
 		weatheredText:SetTextColor(0.6, 0.6, 0.6)
 	else
 		weatheredText:SetText("0")
@@ -1886,14 +1931,14 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 	end
 	colX = colX + columns[8].width
 
-	-- Column 9: Carved Crest (3288)
+	-- Column 9: Carved Crest (3286)
 	local carvedText = rowBg:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	carvedText:SetPoint("LEFT", colX, 0)
 	carvedText:SetWidth(columns[9].width)
 	carvedText:SetJustifyH("CENTER")
-	if alt.currencies and alt.currencies[3288] then
-		local amount = alt.currencies[3288].amount or 0
-		carvedText:SetText(tostring(amount))
+	if alt.currencies and alt.currencies[3286] then
+		local amount = alt.currencies[3286].amount or 0
+		carvedText:SetText(addon.Utils:AbbreviateNumber(amount))
 		carvedText:SetTextColor(0.6, 0.6, 0.6)
 	else
 		carvedText:SetText("0")
@@ -1901,14 +1946,14 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 	end
 	colX = colX + columns[9].width
 
-	-- Column 10: Runed Crest (3289)
+	-- Column 10: Runed Crest (3288)
 	local runedText = rowBg:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	runedText:SetPoint("LEFT", colX, 0)
 	runedText:SetWidth(columns[10].width)
 	runedText:SetJustifyH("CENTER")
-	if alt.currencies and alt.currencies[3289] then
-		local amount = alt.currencies[3289].amount or 0
-		runedText:SetText(tostring(amount))
+	if alt.currencies and alt.currencies[3288] then
+		local amount = alt.currencies[3288].amount or 0
+		runedText:SetText(addon.Utils:AbbreviateNumber(amount))
 		runedText:SetTextColor(0.6, 0.6, 0.6)
 	else
 		runedText:SetText("0")
@@ -1923,7 +1968,7 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 	gildedText:SetJustifyH("CENTER")
 	if alt.currencies and alt.currencies[3290] then
 		local amount = alt.currencies[3290].amount or 0
-		gildedText:SetText(tostring(amount))
+		gildedText:SetText(addon.Utils:AbbreviateNumber(amount))
 		gildedText:SetTextColor(0.6, 0.6, 0.6)
 	else
 		gildedText:SetText("0")
@@ -1935,7 +1980,7 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 	local keyText = rowBg:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	keyText:SetPoint("LEFT", colX, 0)
 	keyText:SetWidth(columns[12].width)
-	keyText:SetJustifyH("LEFT")
+	keyText:SetJustifyH("CENTER")
 	if mythicplusData and mythicplusData.currentKey then
 		local key = mythicplusData.currentKey
 		local abbrev = ""
@@ -1961,7 +2006,7 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 	local doneText = rowBg:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	doneText:SetPoint("LEFT", colX, 0)
 	doneText:SetWidth(columns[13].width)
-	doneText:SetJustifyH("RIGHT")
+	doneText:SetJustifyH("CENTER")
 	local completion = alt.completionPercent or 0
 	doneText:SetText(format("%d%%", completion))
 	if completion >= 80 then
@@ -1973,12 +2018,25 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 	end
 	colX = colX + columns[13].width
 
-	-- Column 14: Delete button
+	-- Column 14: Delete button (X)
 	local deleteBtn = CreateFrame("Button", nil, rowBg)
-	deleteBtn:SetSize(16, 16)
-	deleteBtn:SetPoint("LEFT", colX + 2, 0)
-	deleteBtn:SetNormalTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-	deleteBtn:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
+	deleteBtn:SetSize(18, 18)
+	deleteBtn:SetPoint("LEFT", colX + (columns[14].width / 2) - 9, 0) -- Center in column
+
+	-- Create X text
+	local xText = deleteBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	xText:SetPoint("CENTER")
+	xText:SetText("X")
+	xText:SetTextColor(0.8, 0.2, 0.2) -- Red X
+	deleteBtn.text = xText
+
+	-- Hover effect
+	deleteBtn:SetScript("OnEnter", function(self)
+		self.text:SetTextColor(1, 0, 0) -- Brighter red on hover
+	end)
+	deleteBtn:SetScript("OnLeave", function(self)
+		self.text:SetTextColor(0.8, 0.2, 0.2)
+	end)
 
 	-- Create key for this alt
 	local altKey = format("%s-%s", alt.realm, alt.name)
@@ -1987,27 +2045,23 @@ function Display:CreateAltGridRow(parent, alt, columns, xOffset, yOffset, totalW
 	if isCurrentChar then
 		deleteBtn:SetAlpha(0.3)
 		deleteBtn:SetEnabled(false)
+		deleteBtn.text:SetTextColor(0.4, 0.4, 0.4) -- Gray out for current char
+		-- Remove hover effect for current character
+		deleteBtn:SetScript("OnEnter", nil)
+		deleteBtn:SetScript("OnLeave", nil)
 	else
 		deleteBtn:SetScript("OnClick", function()
-			-- Confirmation with blacklist option
+			-- Simple two-button dialog
 			StaticPopupDialogs["MIDNIGHTTRACKER_DELETE_ALT"] = {
-				text = format("Delete tracking data for %s?\n\n|cffFFFF00Delete|r - Character will be re-tracked if you log in again\n|cffFF6B6BDelete & Don't Track|r - Character will be blacklisted", alt.name),
-				button1 = "Delete",
-				button2 = "Delete & Don't Track",
-				button3 = "Cancel",
+				text = format("Remove %s from alt tracker?\n\n|cffFF6B6BCharacter will be blacklisted and won't be tracked again.|r\n|cff888888Use '/mtrack blacklist remove %s-%s' to unblacklist.|r", alt.name, alt.realm, alt.name),
+				button1 = "Remove & Blacklist",
+				button2 = "Cancel",
 				OnAccept = function()
-					-- Delete without blacklist
-					if addon.AltManager and addon.AltManager.DeleteAlt then
-						addon.AltManager:DeleteAlt(altKey, false)
-						if addon.Display and addon.Display.UpdateDisplay then
-							addon.Display:UpdateDisplay()
-						end
-					end
-				end,
-				OnAlt = function()
-					-- Delete and blacklist
+					-- Remove and blacklist to prevent re-tracking
 					if addon.AltManager and addon.AltManager.DeleteAlt then
 						addon.AltManager:DeleteAlt(altKey, true)
+						print("|cff00ff96MidnightTracker:|r Removed and blacklisted " .. alt.name)
+						print("|cff888888Use '/mtrack blacklist remove " .. altKey .. "' to unblacklist|r")
 						if addon.Display and addon.Display.UpdateDisplay then
 							addon.Display:UpdateDisplay()
 						end

@@ -30,12 +30,18 @@ local DIFFICULTY = {
 	MYTHIC = 16,
 }
 
--- World boss quest IDs (War Within - rotating weekly)
+-- World boss quest IDs (rotating weekly)
 local WORLD_BOSS_QUESTS = {
+	-- War Within World Bosses (verified quest IDs)
 	{questID = 81630, name = "Kordac, the Dormant Protector", zone = "Isle of Dorn", expansion = "War Within"},
 	{questID = 82653, name = "Aggregation of Horrors", zone = "Ringing Deeps", expansion = "War Within"},
 	{questID = 81653, name = "Shurrai, Atrocity of the Undersea", zone = "Hallowfall", expansion = "War Within"},
 	{questID = 81624, name = "Orta, the Broken Mountain", zone = "Azj-Kahet", expansion = "War Within"},
+
+	-- Midnight World Bosses (Patch 12.1+ - quest IDs to be added when available)
+	-- NOTE: Midnight launched March 2, 2026 - world boss quest IDs will be available in databases soon
+	-- {questID = 0, name = "Midnight World Boss 1", zone = "TBD", expansion = "Midnight"},
+	-- {questID = 0, name = "Midnight World Boss 2", zone = "TBD", expansion = "Midnight"},
 }
 
 -- Weekly quest IDs (War Within)

@@ -98,6 +98,15 @@ function MythicPlusTracker:UpdateDungeonData()
 		return
 	end
 
+	-- Don't track M+ for non-max level characters
+	local maxLevel = GetMaxLevelForPlayerExpansion()
+	local currentLevel = UnitLevel("player")
+	if currentLevel < maxLevel then
+		self.dungeonData = {}
+		self.weeklyRuns = {}
+		return
+	end
+
 	-- Get all-time run history for best tracking
 	local allRunHistory = C_MythicPlus.GetRunHistory(true, true) -- includePreviousWeeks=true, includeIncomplete=true
 
@@ -182,8 +191,8 @@ function MythicPlusTracker:UpdateDungeonData()
 					affixData.bestTimedUpgradeLevel = upgradeLevel
 				end
 
-				-- Add to weekly runs per-dungeon tracking
-				table.insert(affixData.weeklyRuns, level)
+				-- NOTE: Do NOT add to weeklyRuns here - this is all-time data
+				-- weeklyRuns is populated separately from weeklyRunHistory below
 
 				-- Update season best
 				if level > self.dungeonData[mapID].seasonBest then
@@ -202,7 +211,7 @@ function MythicPlusTracker:UpdateDungeonData()
 						bestTimed = (affixKey == "fortified" and completed) and level or 0,
 						bestTimedUpgradeLevel = (affixKey == "fortified" and completed) and upgradeLevel or 0,
 						rating = 0,
-						weeklyRuns = affixKey == "fortified" and {level} or {}
+						weeklyRuns = {} -- Initialize empty - populated from weeklyRunHistory below
 					},
 					tyrannical = {
 						best = affixKey == "tyrannical" and level or 0,
@@ -210,7 +219,7 @@ function MythicPlusTracker:UpdateDungeonData()
 						bestTimed = (affixKey == "tyrannical" and completed) and level or 0,
 						bestTimedUpgradeLevel = (affixKey == "tyrannical" and completed) and upgradeLevel or 0,
 						rating = 0,
-						weeklyRuns = affixKey == "tyrannical" and {level} or {}
+						weeklyRuns = {} -- Initialize empty - populated from weeklyRunHistory below
 					},
 					seasonBest = level,
 					seasonBestUpgradeLevel = upgradeLevel
@@ -302,6 +311,23 @@ end
 
 -- Get snapshot data for alt manager
 function MythicPlusTracker:GetSnapshotData()
+	-- Don't save M+ data for non-max level characters
+	local maxLevel = GetMaxLevelForPlayerExpansion()
+	local currentLevel = UnitLevel("player")
+
+	if currentLevel < maxLevel then
+		-- Return empty data for non-max level characters
+		return {
+			season = CURRENT_SEASON,
+			rating = 0,
+			itemLevel = self.itemLevel,
+			currentKey = nil,
+			dungeons = {},
+			weeklyVault = {activities = 0, remaining = 8},
+			weeklyRuns = {}
+		}
+	end
+
 	return {
 		season = CURRENT_SEASON,
 		rating = self.rating,

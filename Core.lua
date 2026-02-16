@@ -42,6 +42,9 @@ local defaults = {
 		showZeroCurrencies = false,
 		showUndiscovered = false,
 		filterByZone = true, -- Only show currencies relevant to current zone
+		abbreviateNumbers = true, -- Abbreviate large numbers (1.5M instead of 1,500,000)
+		showConversionInfo = true, -- Show +X info for convertible items
+		showItems = true, -- Track items alongside currencies
 		-- Great Vault (shown in Weekly Tracker window, not currency display)
 		showGreatVault = false,
 		showVaultRaid = true,
@@ -145,6 +148,11 @@ eventHandlers.PLAYER_LOGIN = function()
 	-- Initialize upgrade tracker
 	if addon.UpgradeTracker and addon.UpgradeTracker.Initialize then
 		addon.UpgradeTracker:Initialize()
+	end
+
+	-- Initialize conversion tracker
+	if addon.ConversionTracker and addon.ConversionTracker.Initialize then
+		addon.ConversionTracker:Initialize()
 	end
 
 	-- Initialize cooldown tracker
@@ -298,6 +306,14 @@ eventHandlers.PLAYER_UPDATE_RESTING = function()
 	end
 end
 
+-- BAG_UPDATE: Fired when bag contents change (for item tracking)
+eventHandlers.BAG_UPDATE = function(bagID)
+	-- Update display to refresh item counts
+	if addon.Display and addon.Display.UpdateDisplay then
+		addon.Display:UpdateDisplay()
+	end
+end
+
 -- Event dispatcher
 eventFrame:SetScript("OnEvent", function(self, event, ...)
 	if eventHandlers[event] then
@@ -335,6 +351,36 @@ function addon.Utils:FormatNumber(num)
 		if k == 0 then break end
 	end
 	return formatted
+end
+
+-- Abbreviate large numbers (1500000 -> "1.5M", 5200 -> "5.2K")
+function addon.Utils:AbbreviateNumber(num)
+	if not num then return "0" end
+
+	-- Check if abbreviation is enabled in settings
+	if addon.db and addon.db.settings and addon.db.settings.abbreviateNumbers == false then
+		return tostring(num)
+	end
+
+	if num >= 1000000 then
+		return format("%.1fM", num / 1000000)
+	elseif num >= 1000 then
+		return format("%.1fK", num / 1000)
+	else
+		return tostring(num)
+	end
+end
+
+-- Format number with optional abbreviation based on settings
+function addon.Utils:FormatAmount(num)
+	if not num then return "0" end
+
+	-- Use abbreviation if enabled (default: true)
+	if addon.db and addon.db.settings and addon.db.settings.abbreviateNumbers ~= false then
+		return self:AbbreviateNumber(num)
+	else
+		return self:FormatNumber(num)
+	end
 end
 
 -- Get color code string
@@ -385,9 +431,31 @@ SlashCmdList["MIDNIGHTTRACKER"] = function(msg)
 			addon.Minimap:UpdatePosition()
 		end
 		addon.Utils:Print("Minimap position reset.")
-	elseif msg == "showzero" or msg == "show zero" then
+	elseif msg == "showzero" or msg == "show zero" or msg == "hidezero" or msg == "hide zero" then
 		addon.db.settings.showZeroCurrencies = not addon.db.settings.showZeroCurrencies
-		addon.Utils:Print(format("Show zero currencies: %s", addon.db.settings.showZeroCurrencies and "ON" or "OFF"))
+		local status = addon.db.settings.showZeroCurrencies and "Showing all currencies/items (including 0)" or "Hiding currencies/items with 0 count"
+		addon.Utils:Print(status)
+		-- Force display update
+		if addon.Display and addon.Display.UpdateDisplay then
+			addon.Display:UpdateDisplay()
+		end
+	elseif msg == "abbreviate" or msg == "abbrev" then
+		addon.db.settings.abbreviateNumbers = not addon.db.settings.abbreviateNumbers
+		addon.Utils:Print(format("Abbreviate numbers: %s", addon.db.settings.abbreviateNumbers and "ON (1.5M)" or "OFF (1,500,000)"))
+		-- Force display update
+		if addon.Display and addon.Display.UpdateDisplay then
+			addon.Display:UpdateDisplay()
+		end
+	elseif msg == "conversion" or msg == "convert" then
+		addon.db.settings.showConversionInfo = not addon.db.settings.showConversionInfo
+		addon.Utils:Print(format("Show conversion info: %s", addon.db.settings.showConversionInfo and "ON (+X Keys)" or "OFF"))
+		-- Force display update
+		if addon.Display and addon.Display.UpdateDisplay then
+			addon.Display:UpdateDisplay()
+		end
+	elseif msg == "items" or msg == "showitems" then
+		addon.db.settings.showItems = not addon.db.settings.showItems
+		addon.Utils:Print(format("Track items: %s", addon.db.settings.showItems and "ON" or "OFF (currencies only)"))
 		-- Force display update
 		if addon.Display and addon.Display.UpdateDisplay then
 			addon.Display:UpdateDisplay()
@@ -404,17 +472,45 @@ SlashCmdList["MIDNIGHTTRACKER"] = function(msg)
 		print(format("  Map Name: %s", mapInfo and mapInfo.name or "Unknown"))
 		print(format("  Detected Expansion: %s", tostring(expansion)))
 		print(format("  Filter Enabled: %s", addon.db.settings.filterByZone and "Yes" or "No"))
-	elseif msg == "currency" then
+	elseif msg == "currency" or msg == "crests" then
 		addon.Utils:Print("Checking Ethereal Crests:")
-		local crests = {3285, 3288, 3289, 3290}
+		local crests = {3284, 3286, 3288, 3290}
 		for _, id in ipairs(crests) do
 			local info = C_CurrencyInfo.GetCurrencyInfo(id)
 			if info then
 				local enabled = addon.db.settings.currencies[id]
 				local enabledText = enabled == nil and "default" or (enabled and "enabled" or "DISABLED")
 				print(format("  [%d] %s: %d (discovered: %s, %s)", id, info.name, info.quantity, tostring(info.discovered), enabledText))
+
+				-- Show caps if present
+				if info.maxQuantity and info.maxQuantity > 0 then
+					if info.useTotalEarnedForMaxQty then
+						print(format("    Season Cap: %d / %d (total earned)", info.totalEarned or 0, info.maxQuantity))
+					else
+						print(format("    Cap: %d / %d", info.quantity, info.maxQuantity))
+					end
+				end
+
+				-- Show weekly cap if present
+				if info.maxWeeklyQuantity and info.maxWeeklyQuantity > 0 then
+					print(format("    Weekly: %d / %d", info.quantityEarnedThisWeek or 0, info.maxWeeklyQuantity))
+				end
 			else
 				print(format("  [%d] Not found", id))
+			end
+		end
+	elseif msg == "findcrests" or msg == "scancurrency" then
+		addon.Utils:Print("Scanning for Ethereal Crest currency IDs...")
+		print("Looking for currencies with 'Ethereal' or 'Crest' in the name:")
+		-- Scan common ID ranges
+		for id = 3280, 3300 do
+			local info = C_CurrencyInfo.GetCurrencyInfo(id)
+			if info and info.name then
+				local name = info.name:lower()
+				if name:find("ethereal") or name:find("crest") then
+					local discovered = info.discovered and "✓" or "✗"
+					print(format("  [%d] %s: %d (discovered: %s)", id, info.name, info.quantity, discovered))
+				end
 			end
 		end
 	elseif msg == "trackables" or msg == "display" then
@@ -496,9 +592,66 @@ SlashCmdList["MIDNIGHTTRACKER"] = function(msg)
 			addon.Display:UpdateDisplay()
 			addon.Utils:Print("Switched to Current Character view")
 		end
+	elseif msg == "cooldowns" or msg == "cd" then
+		-- Show profession cooldowns
+		if addon.CooldownTracker then
+			addon.Utils:Print("Profession Cooldowns:")
+			local allCooldowns = addon.CooldownTracker:GetAllCooldowns()
+			local count = 0
+			for spellID, cooldown in pairs(allCooldowns) do
+				local status = cooldown.ready and "|cFF00FF00Ready|r" or format("|cFFFF0000%s|r", addon.CooldownTracker:FormatTimeRemaining(cooldown.timeRemaining))
+				print(format("  %s (%s): %s", cooldown.name, cooldown.profession, status))
+				count = count + 1
+			end
+			if count == 0 then
+				print("  (no profession cooldowns tracked)")
+				print("  Add spell IDs to CooldownTracker.lua CRAFTING_COOLDOWN_SPELLS table")
+			end
+
+			-- Show catalyst
+			local catalyst = addon.CooldownTracker:GetCatalystCharges()
+			print(" ")
+			addon.Utils:Print(format("Catalyst Charges: %d/%d", catalyst.charges, catalyst.maxCharges))
+		end
 	elseif msg == "config" or msg == "options" then
 		if addon.Config and addon.Config.Toggle then
 			addon.Config:Toggle()
+		end
+	elseif msg:match("^blacklist") then
+		local cmd = msg:match("^blacklist%s+(%S+)")
+		local name = msg:match("^blacklist%s+%S+%s+(.+)")
+
+		if cmd == "list" then
+			-- Show blacklisted characters
+			if addon.AltManager then
+				local blacklist = addon.AltManager:GetBlacklist()
+				local count = 0
+				addon.Utils:Print("Blacklisted characters:")
+				for key, _ in pairs(blacklist) do
+					print("  " .. key)
+					count = count + 1
+				end
+				if count == 0 then
+					print("  (none)")
+				end
+			end
+		elseif cmd == "add" and name then
+			-- Blacklist a character (format: Realm-Name)
+			if addon.AltManager then
+				addon.AltManager:BlacklistAlt(name)
+				addon.Utils:Print("Blacklisted: " .. name)
+			end
+		elseif cmd == "remove" and name then
+			-- Remove from blacklist
+			if addon.AltManager then
+				addon.AltManager:UnblacklistAlt(name)
+				addon.Utils:Print("Removed from blacklist: " .. name)
+			end
+		else
+			addon.Utils:Print("Blacklist commands:")
+			print("  /mtrack blacklist list - Show blacklisted characters")
+			print("  /mtrack blacklist add <Realm-Name> - Blacklist a character")
+			print("  /mtrack blacklist remove <Realm-Name> - Remove from blacklist")
 		end
 	else
 		addon.Utils:Print("Commands:")
@@ -510,16 +663,24 @@ SlashCmdList["MIDNIGHTTRACKER"] = function(msg)
 		print("  /mtrack checklist - Toggle smart checklist window")
 		print("  /mtrack alts - Switch to alt dashboard view")
 		print("  /mtrack current - Switch to current character view")
-		print("  /mtrack showzero - Toggle showing currencies with 0 amount")
+		print("  /mtrack showzero - Toggle hiding currencies/items with 0 count")
+		print("  /mtrack hidezero - Same as showzero (toggle hide when zero)")
+		print("  /mtrack abbreviate - Toggle number abbreviation (1.5M vs 1,500,000)")
+		print("  /mtrack conversion - Toggle conversion info (+X Keys for craftables)")
+		print("  /mtrack items - Toggle item tracking (alongside currencies)")
 		print("  /mtrack minimap show - Show minimap icon")
 		print("  /mtrack minimap hide - Hide minimap icon")
 		print("  /mtrack reset - Reset minimap icon position")
 		print("  /mtrack debug - Toggle debug mode")
 		print("  /mtrack zone - Show zone detection info")
-		print("  /mtrack currency - Check crest discovery status")
+		print("  /mtrack crests - Check crest counts and caps (detailed)")
+		print("  /mtrack cooldowns - Show profession cooldowns and catalyst charges")
 		print("  /mtrack trackables - Show what's being displayed")
 		print("  /mtrack categories - Show enabled/disabled categories")
 		print("  /mtrack showall - Enable all expansion categories")
+		print("  /mtrack blacklist list - Show blacklisted alts")
+		print("  /mtrack blacklist add <Realm-Name> - Blacklist a character")
+		print("  /mtrack blacklist remove <Realm-Name> - Unblacklist a character")
 		print("  /mtrack config - Open configuration panel")
 		print(" ")
 		print("Short commands: /mtk or /midnighttracker also work")

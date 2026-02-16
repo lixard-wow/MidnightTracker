@@ -147,9 +147,9 @@ function Tracker:GetGreatVaultProgress()
 	if not activities then return nil end
 
 	local progress = {
-		raid = {current = 0, max = 8, thresholds = {2, 4, 8}, levels = {0, 0, 0}},
-		mythicplus = {current = 0, max = 8, thresholds = {2, 4, 8}, levels = {0, 0, 0}},
-		world = {current = 0, max = 8, thresholds = {2, 4, 8}, levels = {0, 0, 0}},
+		raid = {current = 0, max = 8, thresholds = {2, 4, 6}, levels = {0, 0, 0}}, -- Correct: 2/4/6 bosses for vault slots
+		mythicplus = {current = 0, max = 8, thresholds = {1, 4, 8}, levels = {0, 0, 0}}, -- Correct: 1/4/8 dungeons
+		world = {current = 0, max = 8, thresholds = {2, 5, 8}, levels = {0, 0, 0}}, -- Correct: 2/5/8 activities
 	}
 
 	-- Group activities by type
@@ -170,15 +170,27 @@ function Tracker:GetGreatVaultProgress()
 		end
 	end
 
-	-- Sort by threshold and assign to slots
+	-- Sort by threshold and assign to slots, also extract actual thresholds from API
 	local function assignLevels(activityList, progressData)
 		table.sort(activityList, function(a, b)
 			return (a.threshold or 0) < (b.threshold or 0)
 		end)
+
+		-- Extract thresholds from API (overrides hardcoded defaults)
+		local apiThresholds = {}
 		for i, activity in ipairs(activityList) do
 			if i <= 3 then
 				progressData.levels[i] = activity.level or 0
+				-- Store actual threshold from API
+				if activity.threshold then
+					apiThresholds[i] = activity.threshold
+				end
 			end
+		end
+
+		-- Use API thresholds if available, otherwise keep defaults
+		if #apiThresholds == 3 then
+			progressData.thresholds = apiThresholds
 		end
 	end
 
@@ -401,6 +413,75 @@ function Tracker:GetAllTrackables()
 				if #categoryData.currencies > 0 then
 					table.insert(data.categories, categoryData)
 				end
+		end
+	end
+
+	-- Build item data by category (similar to currencies)
+	local showItems = addon.db and addon.db.settings and addon.db.settings.showItems ~= false
+	if showItems and addon.Data.Items then
+		for category, items in pairs(addon.Data.Items) do
+			local filterByZone = addon.db and addon.db.settings and addon.db.settings.filterByZone
+			local categoryKey = self:GetCategorySettingKey(category)
+			local categoryEnabled = not addon.db or not addon.db.settings or addon.db.settings.categories[categoryKey] ~= false
+			local showCategory = false
+
+			-- Check if category should be shown (same logic as currencies)
+			if not categoryEnabled then
+				showCategory = false
+			elseif not filterByZone then
+				showCategory = true
+			else
+				if self:IsCurrencyRelevantToZone(category, currentExpansion) then
+					showCategory = true
+				end
+			end
+
+			if showCategory then
+				-- Find or create category data (may already exist from currencies)
+				local categoryData = nil
+				for _, cat in ipairs(data.categories) do
+					if cat.name == category then
+						categoryData = cat
+						break
+					end
+				end
+
+				if not categoryData then
+					categoryData = {
+						name = category,
+						currencies = {}, -- Items go in same array as currencies
+					}
+					table.insert(data.categories, categoryData)
+				end
+
+				-- Process each item
+				for _, itemInfo in ipairs(items) do
+					local itemID = itemInfo[1]
+					local displayName = itemInfo[2]
+
+					-- Get item count
+					local count = self:GetCachedItemCount(itemID)
+					local showZero = addon.db and addon.db.settings and addon.db.settings.showZeroCurrencies
+
+					-- Show if count > 0 or showZero is enabled
+					if count > 0 or showZero then
+						-- Get item info from game
+						local itemName, _, _, _, _, _, _, _, _, itemIcon = GetItemInfo(itemID)
+
+						-- Add to display (use same structure as currencies)
+						table.insert(categoryData.currencies, {
+							id = itemID,
+							name = displayName or itemName or "Unknown Item",
+							amount = count,
+							icon = itemIcon or 134400, -- Fallback icon
+							max = nil, -- Items don't have caps
+							weeklyMax = nil,
+							earnedThisWeek = nil,
+							isItem = true, -- Flag to identify items vs currencies
+						})
+					end
+				end
+			end
 		end
 	end
 

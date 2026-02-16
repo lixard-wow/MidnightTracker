@@ -28,44 +28,111 @@ local EQUIPMENT_SLOTS = {
 	17, -- Off Hand
 }
 
--- Upgrade track constants (War Within Season 3 - Ethereal Crests)
-local UPGRADE_TRACKS = {
-	ADVENTURER = {
-		name = "Adventurer",
-		minLevel = 480,  -- Item level 480-493
-		maxLevel = 493,
-		crestID = 3285,  -- Weathered Ethereal Crest
-		upgradesPerCrest = 15, -- Each crest provides 15 item levels
-	},
-	VETERAN = {
-		name = "Veteran",
-		minLevel = 493,  -- Item level 493-506
-		maxLevel = 506,
-		crestID = 3288,  -- Carved Ethereal Crest
-		upgradesPerCrest = 15,
-	},
-	CHAMPION = {
-		name = "Champion",
-		minLevel = 506,  -- Item level 506-519
-		maxLevel = 519,
-		crestID = 3289,  -- Runed Ethereal Crest
-		upgradesPerCrest = 15,
-	},
-	HERO = {
-		name = "Hero",
-		minLevel = 519,  -- Item level 519-532
-		maxLevel = 532,
-		crestID = 3290,  -- Gilded Ethereal Crest
-		upgradesPerCrest = 15,
-	},
-	MYTH = {
-		name = "Myth",
-		minLevel = 532,  -- Item level 532+
-		maxLevel = 545,
-		crestID = nil,   -- Myth track uses different upgrade system
-		upgradesPerCrest = 0,
-	},
-}
+-- Upgrade track constants
+-- NOTE: Midnight (12.0+) uses stat-squished item levels (203-289)
+-- NOTE: War Within uses pre-squish item levels (642-723)
+-- Auto-detect based on character's max item level
+local function GetUpgradeTracks()
+	-- Detect if we're in Midnight (max ilvl < 400 indicates stat squish)
+	local avgItemLevel = GetAverageItemLevel()
+	local isMidnight = (avgItemLevel and avgItemLevel < 400)
+
+	if isMidnight then
+		-- MIDNIGHT SEASON 1 (Dawncrests) - Item levels 203-289
+		return {
+			EXPLORER = {
+				name = "Explorer",
+				minLevel = 203,  -- Item level 203-226
+				maxLevel = 226,
+				crestID = nil,   -- No crests required
+				upgradesPerCrest = 0,
+			},
+			ADVENTURER = {
+				name = "Adventurer",
+				minLevel = 224,  -- Item level 224-237
+				maxLevel = 237,
+				crestID = 3383,  -- Adventurer Dawncrest
+				upgradesPerCrest = 15,
+			},
+			VETERAN = {
+				name = "Veteran",
+				minLevel = 237,  -- Item level 237-250
+				maxLevel = 250,
+				crestID = 3342,  -- Veteran Dawncrest
+				upgradesPerCrest = 15,
+			},
+			CHAMPION = {
+				name = "Champion",
+				minLevel = 250,  -- Item level 250-263
+				maxLevel = 263,
+				crestID = 3343,  -- Champion Dawncrest
+				upgradesPerCrest = 15,
+			},
+			HERO = {
+				name = "Hero",
+				minLevel = 263,  -- Item level 263-276
+				maxLevel = 276,
+				crestID = 3345,  -- Hero Dawncrest
+				upgradesPerCrest = 15,
+			},
+			MYTH = {
+				name = "Myth",
+				minLevel = 276,  -- Item level 276-289
+				maxLevel = 289,
+				crestID = 3346,  -- Myth Dawncrest
+				upgradesPerCrest = 0,
+			},
+		}
+	else
+		-- WAR WITHIN SEASON 3 (Ethereal Crests) - Item levels 642-723
+		return {
+			EXPLORER = {
+				name = "Explorer",
+				minLevel = 642,  -- Item level 642-665
+				maxLevel = 665,
+				crestID = nil,   -- No crests required
+				upgradesPerCrest = 0,
+			},
+			ADVENTURER = {
+				name = "Adventurer",
+				minLevel = 655,  -- Item level 655-678
+				maxLevel = 678,
+				crestID = 3284,  -- Weathered Ethereal Crest
+				upgradesPerCrest = 15,
+			},
+			VETERAN = {
+				name = "Veteran",
+				minLevel = 668,  -- Item level 668-691
+				maxLevel = 691,
+				crestID = 3286,  -- Carved Ethereal Crest
+				upgradesPerCrest = 15,
+			},
+			CHAMPION = {
+				name = "Champion",
+				minLevel = 681,  -- Item level 681-704
+				maxLevel = 704,
+				crestID = 3288,  -- Runed Ethereal Crest
+				upgradesPerCrest = 15,
+			},
+			HERO = {
+				name = "Hero",
+				minLevel = 694,  -- Item level 694-710
+				maxLevel = 710,
+				crestID = 3290,  -- Gilded Ethereal Crest
+				upgradesPerCrest = 15,
+			},
+			MYTH = {
+				name = "Myth",
+				minLevel = 707,  -- Item level 707-723
+				maxLevel = 723,
+				crestID = nil,   -- Myth track uses different upgrade system
+				upgradesPerCrest = 0,
+			},
+		}
+	end
+end
+
+local UPGRADE_TRACKS = GetUpgradeTracks()
 
 -- Initialize upgrade tracker
 function UpgradeTracker:Initialize()
@@ -77,6 +144,9 @@ end
 
 -- Update all equipment slots
 function UpgradeTracker:UpdateAllSlots()
+	-- Refresh upgrade tracks for current expansion
+	UPGRADE_TRACKS = GetUpgradeTracks()
+
 	for _, slot in ipairs(EQUIPMENT_SLOTS) do
 		self:UpdateSlot(slot)
 	end
@@ -153,6 +223,7 @@ function UpgradeTracker:DetermineUpgradeTrack(itemLevel)
 		UPGRADE_TRACKS.CHAMPION,
 		UPGRADE_TRACKS.VETERAN,
 		UPGRADE_TRACKS.ADVENTURER,
+		UPGRADE_TRACKS.EXPLORER,
 	}
 
 	for _, track in ipairs(tracks) do

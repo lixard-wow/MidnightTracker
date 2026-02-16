@@ -45,10 +45,10 @@ addon.Data.Currencies = {
 		-- === UPGRADE MATERIALS ===
 		-- Valorstones
 		{3008, "Valorstones", nil, 5872034},
-		-- Crests (in quality order)
-		{3285, "Weathered Ethereal Crest", nil, 5927678},
-		{3288, "Carved Ethereal Crest", nil, 5927679},
-		{3289, "Runed Ethereal Crest", nil, 5927680},
+		-- Crests (actual crests, not fragments - even IDs)
+		{3284, "Weathered Ethereal Crest", nil, 5927678},
+		{3286, "Carved Ethereal Crest", nil, 5927679},
+		{3288, "Runed Ethereal Crest", nil, 5927680},
 		{3290, "Gilded Ethereal Crest", nil, 5927681},
 
 		-- === WEEKLY CURRENCIES ===
@@ -173,6 +173,44 @@ addon.Data.Currencies = {
 		{81, "Epicurean's Award", nil, 133886},
 		{2588, "Riders of Azeroth Badge", nil, 4622500},
 		{2123, "Bloody Token", nil, 1945738},
+	},
+}
+
+-- Item definitions (tracked items that are not currencies)
+-- Format: [categoryKey] = { {itemID, displayName (optional)}, ... }
+-- DisplayName is optional - will use game's item name if nil
+addon.Data.Items = {
+	-- War Within
+	[CATEGORY.WARWITHIN] = {
+		-- Delve/Key items (benefits from conversion tracking)
+		{236096, "Coffer Key Shard"}, -- 100 → 1 Restored Coffer Key
+		{246771, "Radiant Echo"}, -- Delve currency-like item
+
+		-- Crafting materials
+		{210814, "Artisan's Acuity"}, -- Profession currency
+		{206350, "Radiant Remnant"}, -- Crafting material
+	},
+
+	-- Dragonflight
+	[CATEGORY.DRAGONFLIGHT] = {
+		-- Obsidian Key materials (benefits from conversion tracking)
+		{191251, "Key Fragments"}, -- 30 fragments + 3 framings → 1 key
+		{193201, "Key Framing"}, -- 3 framings + 30 fragments → 1 key
+		{191264, "Restored Obsidian Key"}, -- The actual key
+
+		-- Zaralek Cavern
+		{205188, "Unearthed Fragrant Coin"}, -- Niffen reputation
+		{205985, "Barter Brick"}, -- Vendor currency
+
+		-- Emerald Dream
+		{208066, "Dreamseed"}, -- Emerald Bounty system
+		{207026, "Dreamleaf"}, -- Emerald Dream material
+	},
+
+	-- Shadowlands (optional, can be disabled by category)
+	[CATEGORY.SHADOWLANDS] = {
+		{190189, "Sandworn Relic"}, -- Zereth Mortis
+		{186984, "Korthian Archivists' Key"}, -- Korthia
 	},
 }
 
