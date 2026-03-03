@@ -1,20 +1,16 @@
 local addonName, addon = ...
 
--- Tracker module: handles data fetching and caching
+-- Tracker module: handles currency data fetching and caching
 addon.Tracker = {}
 local Tracker = addon.Tracker
 
 -- Cache for currency data
 Tracker.currencyCache = {}
-Tracker.itemCache = {}
-Tracker.weeklyCache = {}
 
--- Initialize tracker
 function Tracker:Initialize()
-	-- Scan all currencies on login
 	self:UpdateAllCurrencies()
 
-	-- Set up periodic update (every 5 seconds)
+	-- Periodic update every 5 seconds
 	self.updateTimer = 0
 	local updateFrame = CreateFrame("Frame")
 	updateFrame:SetScript("OnUpdate", function(self, elapsed)
@@ -26,17 +22,14 @@ function Tracker:Initialize()
 	end)
 end
 
--- Update all tracked currencies
 function Tracker:UpdateAllCurrencies()
 	for category, currencies in pairs(addon.Data.Currencies) do
 		for _, currencyData in ipairs(currencies) do
-			local currencyID = currencyData[1]
-			self:UpdateCurrency(currencyID)
+			self:UpdateCurrency(currencyData[1])
 		end
 	end
 end
 
--- Update single currency
 function Tracker:UpdateCurrency(currencyID)
 	if not C_CurrencyInfo then return end
 
@@ -45,6 +38,7 @@ function Tracker:UpdateCurrency(currencyID)
 		self.currencyCache[currencyID] = {
 			name = info.name,
 			quantity = info.quantity,
+			totalEarned = info.totalEarned,
 			iconFileID = info.iconFileID,
 			maxQuantity = info.maxQuantity,
 			maxWeeklyQuantity = info.maxWeeklyQuantity,
@@ -55,7 +49,6 @@ function Tracker:UpdateCurrency(currencyID)
 	end
 end
 
--- Resolve effective weekly cap (API-first)
 function Tracker:GetEffectiveWeeklyCap(cached, fallbackWeeklyMax)
 	if not cached then
 		if fallbackWeeklyMax and fallbackWeeklyMax > 0 then
@@ -64,17 +57,14 @@ function Tracker:GetEffectiveWeeklyCap(cached, fallbackWeeklyMax)
 		return nil
 	end
 
-	-- Preferred source: true weekly cap from API
 	if cached.maxWeeklyQuantity and cached.maxWeeklyQuantity > 0 then
 		return cached.maxWeeklyQuantity
 	end
 
-	-- Some currencies expose capped progress via total-earned max quantity
 	if cached.useTotalEarnedForMaxQty and cached.maxQuantity and cached.maxQuantity > 0 then
 		return cached.maxQuantity
 	end
 
-	-- Fallback to static data if provided
 	if fallbackWeeklyMax and fallbackWeeklyMax > 0 then
 		return fallbackWeeklyMax
 	end
@@ -82,12 +72,10 @@ function Tracker:GetEffectiveWeeklyCap(cached, fallbackWeeklyMax)
 	return nil
 end
 
--- Get currency data from cache
 function Tracker:GetCurrency(currencyID)
 	return self.currencyCache[currencyID]
 end
 
--- Check if currency is discovered by player
 function Tracker:IsCurrencyDiscovered(currencyID)
 	local cached = self.currencyCache[currencyID]
 	if not cached then
@@ -97,7 +85,6 @@ function Tracker:IsCurrencyDiscovered(currencyID)
 	return cached and cached.discovered
 end
 
--- Get currency amount
 function Tracker:GetCurrencyAmount(currencyID)
 	local cached = self.currencyCache[currencyID]
 	if not cached then
@@ -107,204 +94,102 @@ function Tracker:GetCurrencyAmount(currencyID)
 	return cached and cached.quantity or 0
 end
 
--- Event handler: currency updated
 function Tracker:OnCurrencyUpdate(currencyID, quantity)
 	if currencyID then
 		self:UpdateCurrency(currencyID)
 	else
-		-- If no specific currency, update all tracked currencies
 		self:UpdateAllCurrencies()
 	end
-end
-
--- Event handler: quest log updated
-function Tracker:OnQuestUpdate()
-	-- Update weekly quest tracking
-	self:UpdateWeeklyActivities()
-end
-
--- Update weekly activity tracking
-function Tracker:UpdateWeeklyActivities()
-	if not addon.Data.WeeklyActivities then return end
-
-	for _, activity in ipairs(addon.Data.WeeklyActivities) do
-		if activity.type == "quest" and activity.questID then
-			-- Check if weekly quest is completed
-			local completed = C_QuestLog.IsQuestFlaggedCompleted(activity.questID)
-			self.weeklyCache[activity.name] = {
-				completed = completed,
-				type = "quest",
-			}
-		end
-	end
-end
-
--- Get Great Vault progress
-function Tracker:GetGreatVaultProgress()
-	if not C_WeeklyRewards then return nil end
-
-	local activities = C_WeeklyRewards.GetActivities()
-	if not activities then return nil end
-
-	local progress = {
-		raid = {current = 0, max = 8, thresholds = {2, 4, 6}, levels = {0, 0, 0}}, -- Correct: 2/4/6 bosses for vault slots
-		mythicplus = {current = 0, max = 8, thresholds = {1, 4, 8}, levels = {0, 0, 0}}, -- Correct: 1/4/8 dungeons
-		world = {current = 0, max = 8, thresholds = {2, 5, 8}, levels = {0, 0, 0}}, -- Correct: 2/5/8 activities
-	}
-
-	-- Group activities by type
-	local raidActivities = {}
-	local mplusActivities = {}
-	local worldActivities = {}
-
-	for _, activityInfo in ipairs(activities) do
-		if activityInfo.type == Enum.WeeklyRewardChestThresholdType.Raid then
-			table.insert(raidActivities, activityInfo)
-			progress.raid.current = activityInfo.progress or 0
-		elseif activityInfo.type == Enum.WeeklyRewardChestThresholdType.Activities then
-			table.insert(mplusActivities, activityInfo)
-			progress.mythicplus.current = activityInfo.progress or 0
-		elseif activityInfo.type == Enum.WeeklyRewardChestThresholdType.World then
-			table.insert(worldActivities, activityInfo)
-			progress.world.current = activityInfo.progress or 0
-		end
-	end
-
-	-- Sort by threshold and assign to slots, also extract actual thresholds from API
-	local function assignLevels(activityList, progressData)
-		table.sort(activityList, function(a, b)
-			return (a.threshold or 0) < (b.threshold or 0)
-		end)
-
-		-- Extract thresholds from API (overrides hardcoded defaults)
-		local apiThresholds = {}
-		for i, activity in ipairs(activityList) do
-			if i <= 3 then
-				progressData.levels[i] = activity.level or 0
-				-- Store actual threshold from API
-				if activity.threshold then
-					apiThresholds[i] = activity.threshold
-				end
-			end
-		end
-
-		-- Use API thresholds if available, otherwise keep defaults
-		if #apiThresholds == 3 then
-			progressData.thresholds = apiThresholds
-		end
-	end
-
-	assignLevels(raidActivities, progress.raid)
-	assignLevels(mplusActivities, progress.mythicplus)
-	assignLevels(worldActivities, progress.world)
-
-	return progress
 end
 
 -- Get current zone expansion
 function Tracker:GetCurrentExpansion()
 	local mapID = C_Map.GetBestMapForUnit("player")
-	if not mapID then return "War Within" end -- Default to current expansion
+	if not mapID then return "Midnight" end
 
 	local mapInfo = C_Map.GetMapInfo(mapID)
-	if not mapInfo then return "War Within" end
+	if not mapInfo then return "Midnight" end
 
-	-- Major cities (show only that expansion's currencies)
 	local majorCities = {
-		-- War Within
+		[2393] = "Midnight", -- Silvermoon City (Midnight)
 		[2339] = "War Within", -- Dornogal
-		-- Dragonflight
-		[2112] = "Dragonflight", -- Valdrakken
-		-- Shadowlands
-		[1670] = "Shadowlands", -- Oribos
-		-- BFA
-		[1161] = "BFA", -- Boralus (Alliance)
-		[1165] = "BFA", -- Dazar'alor (Horde)
-		-- Legion
-		[1220] = "Legion", -- Dalaran (Legion)
-		[627] = "Legion", -- Dalaran (Legion, alternative ID)
-		-- WoD
-		[1009] = "WoD", -- Stormshield (Alliance)
-		[1011] = "WoD", -- Warspear (Horde)
-		-- MoP
-		[390] = "MoP", -- Shrine of Seven Stars (Alliance)
-		[391] = "MoP", -- Shrine of Two Moons (Horde)
-		-- Cataclysm (uses main cities)
-		[84] = "Cataclysm", -- Stormwind
-		[85] = "Cataclysm", -- Orgrimmar
-		-- WotLK
-		[125] = "WotLK", -- Dalaran (Northrend)
-		-- BC
-		[111] = "BC", -- Shattrath City
+		[2112] = "Dragonflight",
+		[1670] = "Shadowlands",
+		[1161] = "BFA",
+		[1165] = "BFA",
+		[1220] = "Legion",
+		[627] = "Legion",
+		[1009] = "WoD",
+		[1011] = "WoD",
+		[390] = "MoP",
+		[391] = "MoP",
+		[84] = "Cataclysm",
+		[85] = "Cataclysm",
+		[125] = "WotLK",
+		[111] = "BC",
 	}
 
-	-- Check if in major city first
 	if majorCities[mapID] then
 		return majorCities[mapID]
 	end
 
-	-- Direct map ID to expansion (for dungeons/instances/zones)
 	local directMapExpansion = {
-		-- War Within Zones
-		[2248] = "War Within", -- Isle of Dorn
-		[2255] = "War Within", -- Azj-Kahet
-		[2213] = "War Within", -- Hallowfall
-		[2214] = "War Within", -- The Ringing Deeps
-		-- War Within Dungeons
-		[2367] = "War Within", -- Ara-Kara
-		[2359] = "War Within", -- City of Threads
-		[2369] = "War Within", -- The Rookery
-		[2370] = "War Within", -- Priory of the Sacred Flame
-		[2371] = "War Within", -- The Stonevault
-		[2372] = "War Within", -- Darkflame Cleft
-		[2373] = "War Within", -- Cinderbrew Meadery
-		[2374] = "War Within", -- The Dawnbreaker
-		-- War Within Raids
-		[2481] = "War Within", -- Nerub-ar Palace
-		[2569] = "War Within", -- Liberation of Undermine
+		-- Midnight zones
+		[2395] = "Midnight", -- Eversong Woods
+		[2437] = "Midnight", -- Zul'Aman
+		[2413] = "Midnight", -- Harandar
+		[2405] = "Midnight", -- Voidstorm
+		-- War Within zones
+		[2248] = "War Within",
+		[2255] = "War Within",
+		[2213] = "War Within",
+		[2214] = "War Within",
+		[2367] = "War Within",
+		[2359] = "War Within",
+		[2369] = "War Within",
+		[2370] = "War Within",
+		[2371] = "War Within",
+		[2372] = "War Within",
+		[2373] = "War Within",
+		[2374] = "War Within",
+		[2481] = "War Within",
+		[2569] = "War Within",
 	}
 
 	if directMapExpansion[mapID] then
 		return directMapExpansion[mapID]
 	end
 
-	-- Get continent/expansion by walking up the map tree
 	while mapInfo and mapInfo.mapType ~= Enum.UIMapType.Cosmic do
 		if mapInfo.mapType == Enum.UIMapType.Continent then
-			-- Map continent IDs to expansions
 			local continentToExpansion = {
-				[2274] = "Midnight", -- Quel'Thalas (Midnight)
-				[2248] = "War Within", -- Khaz Algar
-				[1978] = "Dragonflight", -- Dragon Isles
-				[1550] = "Shadowlands", -- Shadowlands
-				[875] = "BFA", -- Zandalar
-				[876] = "BFA", -- Kul Tiras
-				[619] = "Legion", -- Broken Isles
-				[572] = "WoD", -- Draenor
+				[2274] = "Midnight",
+				[2248] = "War Within",
+				[1978] = "Dragonflight",
+				[1550] = "Shadowlands",
+				[875] = "BFA",
+				[876] = "BFA",
+				[619] = "Legion",
+				[572] = "WoD",
 			}
-			return continentToExpansion[mapInfo.mapID] or "War Within"
+			return continentToExpansion[mapInfo.mapID] or "Midnight"
 		end
 		mapInfo = mapInfo.parentMapID and C_Map.GetMapInfo(mapInfo.parentMapID)
 	end
 
-	-- Default to current expansion if can't determine
-	return "War Within"
+	return "Midnight"
 end
 
--- Check if currency should be shown based on zone
 function Tracker:IsCurrencyRelevantToZone(categoryName, expansion)
-	-- Filter by zone setting
 	local filterByZone = addon.db and addon.db.settings and addon.db.settings.filterByZone
 	if not filterByZone then
-		return true -- Show all if filter disabled
+		return true
 	end
 
-	-- PvP is always relevant (universal currency)
 	if categoryName == "PvP Currencies" then
 		return true
 	end
 
-	-- Map category to expansion
 	local categoryExpansions = {
 		["Midnight"] = "Midnight",
 		["War Within"] = "War Within",
@@ -317,181 +202,10 @@ function Tracker:IsCurrencyRelevantToZone(categoryName, expansion)
 		["Cataclysm"] = "Cataclysm",
 		["Wrath of the Lich King"] = "WotLK",
 		["Burning Crusade"] = "BC",
-		["Seasonal Events"] = nil, -- Filtered by zone
+		["Seasonal Events"] = nil,
 	}
 
-	local categoryExp = categoryExpansions[categoryName]
-
-	return categoryExp == expansion
-end
-
--- Get all trackable data for tooltip
-function Tracker:GetAllTrackables()
-	local data = {
-		categories = {},
-		weeklyReset = addon.Data:GetTimeUntilWeeklyReset(),
-	}
-
-	-- Get current expansion for filtering
-	local currentExpansion = self:GetCurrentExpansion()
-
-	-- Build currency data by category
-	for category, currencies in pairs(addon.Data.Currencies) do
-		local filterByZone = addon.db and addon.db.settings and addon.db.settings.filterByZone
-		local categoryKey = self:GetCategorySettingKey(category)
-		local categoryEnabled = not addon.db or not addon.db.settings or addon.db.settings.categories[categoryKey] ~= false
-		local showCategory = false
-
-		-- Always respect category enabled/disabled setting
-		if not categoryEnabled then
-			showCategory = false
-		elseif not filterByZone then
-			-- Zone filtering OFF: show if category is enabled
-			showCategory = true
-		else
-			-- Zone filtering ON: show if category is enabled AND relevant to zone
-			if self:IsCurrencyRelevantToZone(category, currentExpansion) then
-				showCategory = true
-			end
-		end
-
-		if showCategory then
-				local categoryData = {
-					name = category,
-					currencies = {},
-				}
-
-				for _, currencyInfo in ipairs(currencies) do
-					local currencyID = currencyInfo[1]
-					local displayName = currencyInfo[2]
-					local weeklyMax = currencyInfo[3]
-					local iconFileID = currencyInfo[4]
-
-					-- Check if currency is enabled (default: enabled unless explicitly disabled)
-					local currencyEnabled = true
-					if addon.db and addon.db.settings and addon.db.settings.currencies then
-						if addon.db.settings.currencies[currencyID] ~= nil then
-							currencyEnabled = addon.db.settings.currencies[currencyID]
-						end
-					end
-
-					if currencyEnabled then
-						local cached = self:GetCurrency(currencyID)
-						local showZero = addon.db and addon.db.settings and addon.db.settings.showZeroCurrencies
-						local showUndiscovered = addon.db and addon.db.settings and addon.db.settings.showUndiscovered
-
-						if cached then
-							local effectiveWeeklyMax = self:GetEffectiveWeeklyCap(cached, weeklyMax)
-							-- Show discovered currencies with amount > 0 or when showZero is enabled
-							if cached.discovered and (cached.quantity > 0 or showZero) then
-								table.insert(categoryData.currencies, {
-									id = currencyID,
-									name = displayName or cached.name,
-									amount = cached.quantity,
-									icon = cached.iconFileID,
-									max = cached.maxQuantity or weeklyMax,
-									weeklyMax = effectiveWeeklyMax,
-									earnedThisWeek = cached.quantityEarnedThisWeek,
-								})
-							-- Show undiscovered currencies when showUndiscovered is enabled
-							elseif not cached.discovered and showUndiscovered then
-								table.insert(categoryData.currencies, {
-									id = currencyID,
-									name = displayName or cached.name,
-									amount = 0,
-									icon = cached.iconFileID or iconFileID,
-									max = cached.maxQuantity or weeklyMax,
-									weeklyMax = effectiveWeeklyMax,
-									earnedThisWeek = 0,
-								})
-							end
-						end
-					end
-				end
-
-				-- Only add category if it has currencies to display
-				if #categoryData.currencies > 0 then
-					table.insert(data.categories, categoryData)
-				end
-		end
-	end
-
-	-- Build item data by category (similar to currencies)
-	local showItems = addon.db and addon.db.settings and addon.db.settings.showItems ~= false
-	if showItems and addon.Data.Items then
-		for category, items in pairs(addon.Data.Items) do
-			local filterByZone = addon.db and addon.db.settings and addon.db.settings.filterByZone
-			local categoryKey = self:GetCategorySettingKey(category)
-			local categoryEnabled = not addon.db or not addon.db.settings or addon.db.settings.categories[categoryKey] ~= false
-			local showCategory = false
-
-			-- Check if category should be shown (same logic as currencies)
-			if not categoryEnabled then
-				showCategory = false
-			elseif not filterByZone then
-				showCategory = true
-			else
-				if self:IsCurrencyRelevantToZone(category, currentExpansion) then
-					showCategory = true
-				end
-			end
-
-			if showCategory then
-				-- Find or create category data (may already exist from currencies)
-				local categoryData = nil
-				for _, cat in ipairs(data.categories) do
-					if cat.name == category then
-						categoryData = cat
-						break
-					end
-				end
-
-				if not categoryData then
-					categoryData = {
-						name = category,
-						currencies = {}, -- Items go in same array as currencies
-					}
-					table.insert(data.categories, categoryData)
-				end
-
-				-- Process each item
-				for _, itemInfo in ipairs(items) do
-					local itemID = itemInfo[1]
-					local displayName = itemInfo[2]
-
-					-- Get item count
-					local count = self:GetCachedItemCount(itemID)
-					local showZero = addon.db and addon.db.settings and addon.db.settings.showZeroCurrencies
-
-					-- Show if count > 0 or showZero is enabled
-					if count > 0 or showZero then
-						-- Get item info from game
-						local itemName, _, _, _, _, _, _, _, _, itemIcon = GetItemInfo(itemID)
-
-						-- Add to display (use same structure as currencies)
-						table.insert(categoryData.currencies, {
-							id = itemID,
-							name = displayName or itemName or "Unknown Item",
-							amount = count,
-							icon = itemIcon or 134400, -- Fallback icon
-							max = nil, -- Items don't have caps
-							weeklyMax = nil,
-							earnedThisWeek = nil,
-							isItem = true, -- Flag to identify items vs currencies
-						})
-					end
-				end
-			end
-		end
-	end
-
-	-- Add Great Vault progress
-	local vaultProgress = self:GetGreatVaultProgress()
-	if vaultProgress then
-		data.greatVault = vaultProgress
-	end
-
-	return data
+	return categoryExpansions[categoryName] == expansion
 end
 
 -- Convert category name to settings key
@@ -514,30 +228,93 @@ function Tracker:GetCategorySettingKey(categoryName)
 	return keyMap[categoryName] or "showSeasonal"
 end
 
--- Get item count
-function Tracker:GetItemCount(itemID)
-	if not C_Item then
-		-- Fallback for older API
-		return GetItemCount(itemID, true) or 0
-	end
-	return C_Item.GetItemCount(itemID, true) or 0
-end
-
--- Update item cache
-function Tracker:UpdateItem(itemID)
-	local count = self:GetItemCount(itemID)
-	self.itemCache[itemID] = {
-		count = count,
-		lastUpdate = time(),
+-- Get all trackable currency data
+function Tracker:GetAllTrackables()
+	local data = {
+		categories = {},
+		weeklyReset = addon.Data:GetTimeUntilWeeklyReset(),
 	}
-end
 
--- Get cached item count
-function Tracker:GetCachedItemCount(itemID)
-	local cached = self.itemCache[itemID]
-	if not cached or (time() - cached.lastUpdate) > 5 then
-		self:UpdateItem(itemID)
-		cached = self.itemCache[itemID]
+	local currentExpansion = self:GetCurrentExpansion()
+
+	for category, currencies in pairs(addon.Data.Currencies) do
+		local filterByZone = addon.db and addon.db.settings and addon.db.settings.filterByZone
+		local categoryKey = self:GetCategorySettingKey(category)
+		local categoryEnabled = not addon.db or not addon.db.settings or addon.db.settings.categories[categoryKey] ~= false
+		local showCategory = false
+
+		if not categoryEnabled then
+			showCategory = false
+		elseif not filterByZone then
+			showCategory = true
+		else
+			if self:IsCurrencyRelevantToZone(category, currentExpansion) then
+				showCategory = true
+			end
+		end
+
+		if showCategory then
+			local categoryData = {
+				name = category,
+				currencies = {},
+			}
+
+			for _, currencyInfo in ipairs(currencies) do
+				local currencyID = currencyInfo[1]
+				local displayName = currencyInfo[2]
+				local weeklyMax = currencyInfo[3]
+				local iconFileID = currencyInfo[4]
+
+				local currencyEnabled = true
+				if addon.db and addon.db.settings and addon.db.settings.currencies then
+					if addon.db.settings.currencies[currencyID] ~= nil then
+						currencyEnabled = addon.db.settings.currencies[currencyID]
+					end
+				end
+
+				if currencyEnabled then
+					local cached = self:GetCurrency(currencyID)
+					local showZero = addon.db and addon.db.settings and addon.db.settings.showZeroCurrencies
+					local showUndiscovered = addon.db and addon.db.settings and addon.db.settings.showUndiscovered
+
+					if cached then
+						local effectiveWeeklyMax = self:GetEffectiveWeeklyCap(cached, weeklyMax)
+						if cached.discovered and (cached.quantity > 0 or showZero) then
+							-- For total-earned currencies (crests), show total earned and the season cap
+							local displayAmount = cached.quantity
+							local displayMax = cached.maxQuantity or weeklyMax
+							if cached.useTotalEarnedForMaxQty then
+								displayAmount = cached.totalEarned or cached.quantity
+							end
+							table.insert(categoryData.currencies, {
+								id = currencyID,
+								name = displayName or cached.name,
+								amount = displayAmount,
+								icon = cached.iconFileID,
+								max = displayMax,
+								weeklyMax = effectiveWeeklyMax,
+								earnedThisWeek = cached.quantityEarnedThisWeek,
+							})
+						elseif not cached.discovered and showUndiscovered then
+							table.insert(categoryData.currencies, {
+								id = currencyID,
+								name = displayName or cached.name,
+								amount = 0,
+								icon = cached.iconFileID or iconFileID,
+								max = displayMax,
+								weeklyMax = effectiveWeeklyMax,
+								earnedThisWeek = 0,
+							})
+						end
+					end
+				end
+			end
+
+			if #categoryData.currencies > 0 then
+				table.insert(data.categories, categoryData)
+			end
+		end
 	end
-	return cached and cached.count or 0
+
+	return data
 end

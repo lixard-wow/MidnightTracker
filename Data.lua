@@ -1,6 +1,6 @@
 local addonName, addon = ...
 
--- Currency and trackable data
+-- Currency data definitions
 addon.Data = {}
 
 -- Category constants
@@ -22,44 +22,31 @@ local CATEGORY = {
 
 addon.Data.Categories = CATEGORY
 
--- Currency definitions (CORRECTED IDs from research)
+-- Currency definitions
 -- Format: [categoryKey] = { {id, name, weeklyMax, icon}, ... }
 addon.Data.Currencies = {
-	-- Midnight (launches March 2, 2026)
 	[CATEGORY.MIDNIGHT] = {
-		-- Upgrade Crests (Dawncrests)
-		{3383, "Adventurer Dawncrest", nil, nil}, -- Adventurer track (240-250)
-		{3342, "Veteran Dawncrest", nil, nil}, -- Veteran track (237-250)
-		{3343, "Champion Dawncrest", nil, nil}, -- Champion track (250-263)
-		{3345, "Hero Dawncrest", nil, nil}, -- Hero track (263-276)
-		{3346, "Myth Dawncrest", nil, nil}, -- Myth track (276-289)
-		-- Other Currencies
-		{3319, "Twilight's Blade Insignia", nil, nil}, -- Pre-patch event
-		{3379, "Brimming Arcana", nil, nil}, -- Main currency (Eversong)
-		{3316, "Voidlight Marl", nil, nil}, -- Vendor currency
-		{3363, "Community Coupons", nil, nil}, -- Housing/Neighborhood
+		{3383, "Adventurer Dawncrest", nil, nil},
+		{3342, "Veteran Dawncrest", nil, nil},
+		{3343, "Champion Dawncrest", nil, nil},
+		{3345, "Hero Dawncrest", nil, nil},
+		{3346, "Myth Dawncrest", nil, nil},
+		{3319, "Twilight's Blade Insignia", nil, nil},
+		{3379, "Brimming Arcana", nil, nil},
+		{3316, "Voidlight Marl", nil, nil},
+		{3363, "Community Coupons", nil, nil},
 	},
 
-	-- War Within (includes Season 3)
 	[CATEGORY.WARWITHIN] = {
-		-- === UPGRADE MATERIALS ===
-		-- Valorstones
 		{3008, "Valorstones", nil, 5872034},
-		-- Crests (actual crests, not fragments - even IDs)
 		{3284, "Weathered Ethereal Crest", nil, 5927678},
 		{3286, "Carved Ethereal Crest", nil, 5927679},
 		{3288, "Runed Ethereal Crest", nil, 5927680},
 		{3290, "Gilded Ethereal Crest", nil, 5927681},
-
-		-- === WEEKLY CURRENCIES ===
 		{2815, "Resonance Crystals", 3000, 5899503},
-
-		-- === SPECIAL CURRENCIES ===
 		{3028, "Restored Coffer Key", nil, 237446},
 		{3056, "Kej", nil, 5899557},
 		{2803, "Undercoin", nil, 2065568},
-
-		-- === ZONE CURRENCIES ===
 		{3089, "Residual Memories", nil, 5899501},
 		{3090, "Flame-Blessed Iron", nil, 133224},
 		{3093, "Nerub-ar Finery", nil, 134532},
@@ -67,14 +54,10 @@ addon.Data.Currencies = {
 		{3226, "Market Research", nil, 134332},
 		{3149, "Displaced Corrupted Mementos", nil, 237282},
 		{3303, "Untethered Coin", nil, 133784},
-
-		-- === CRAFTING MATERIALS ===
 		{3269, "Ethereal Voidsplinter", nil, nil},
 		{3116, "Essence of Kaja'mite", nil, nil},
 		{2813, "Harmonized Silk", nil, nil},
 		{2533, "Renascent Shadowflame", nil, nil},
-
-		-- === CATALYST ===
 		{2796, "Renascent Dream", nil, nil},
 	},
 
@@ -83,7 +66,6 @@ addon.Data.Currencies = {
 		{1792, "Honor", nil, 1455894},
 	},
 
-	-- Dragonflight
 	[CATEGORY.DRAGONFLIGHT] = {
 		{2245, "Flightstones", 2000, 5172976},
 		{2118, "Elemental Overflow", nil, 2065624},
@@ -92,7 +74,6 @@ addon.Data.Currencies = {
 		{2122, "Storm Sigil", nil, 2065574},
 	},
 
-	-- Shadowlands
 	[CATEGORY.SHADOWLANDS] = {
 		{1906, "Soul Ash", nil, 3743738},
 		{1907, "Soul Cinders", nil, 3743739},
@@ -107,7 +88,6 @@ addon.Data.Currencies = {
 		{1816, "Sinstone Fragments", nil, 3743738},
 	},
 
-	-- Battle for Azeroth
 	[CATEGORY.BFA] = {
 		{1560, "War Resources", nil, 2032592},
 		{1716, "Coalescing Visions", nil, 3084135},
@@ -117,7 +97,6 @@ addon.Data.Currencies = {
 		{1579, "Honorbound Service Medal", nil, 2032593},
 	},
 
-	-- Legion
 	[CATEGORY.LEGION] = {
 		{1220, "Order Resources", nil, 1397630},
 		{1226, "Ancient Mana", nil, 1417744},
@@ -126,7 +105,6 @@ addon.Data.Currencies = {
 		{1342, "Nethershard", nil, 1417744},
 	},
 
-	-- Warlords of Draenor
 	[CATEGORY.WOD] = {
 		{823, "Apexis Crystal", nil, 1064188},
 		{824, "Garrison Resources", nil, 1005027},
@@ -135,7 +113,6 @@ addon.Data.Currencies = {
 		{980, "Dingy Iron Coins", nil, 1064188},
 	},
 
-	-- Mists of Pandaria
 	[CATEGORY.MOP] = {
 		{777, "Timeless Coin", nil, 237282},
 		{402, "Ironpaw Token", nil, 537444},
@@ -146,7 +123,6 @@ addon.Data.Currencies = {
 		{789, "Bloody Coin", nil, 237282},
 	},
 
-	-- Cataclysm
 	[CATEGORY.CATACLYSM] = {
 		{416, "Mark of the World Tree", nil, 133439},
 		{391, "Tol Barad Commendation", nil, 133441},
@@ -155,14 +131,12 @@ addon.Data.Currencies = {
 		{615, "Essence of Corrupted Deathwing", nil, 463852},
 	},
 
-	-- Wrath of the Lich King
 	[CATEGORY.WOTLK] = {
 		{241, "Champion's Seal", nil, 133441},
 		{61, "Dalaran Jewelcrafter's Token", nil, 134071},
 		{42, "Badge of Justice", nil, 133441},
 	},
 
-	-- Burning Crusade
 	[CATEGORY.BC] = {
 		{1101, "Spirit Shard", nil, 463858},
 	},
@@ -176,45 +150,7 @@ addon.Data.Currencies = {
 	},
 }
 
--- Item definitions (tracked items that are not currencies)
--- Format: [categoryKey] = { {itemID, displayName (optional)}, ... }
--- DisplayName is optional - will use game's item name if nil
-addon.Data.Items = {
-	-- War Within
-	[CATEGORY.WARWITHIN] = {
-		-- Delve/Key items (benefits from conversion tracking)
-		{236096, "Coffer Key Shard"}, -- 100 → 1 Restored Coffer Key
-		{246771, "Radiant Echo"}, -- Delve currency-like item
-
-		-- Crafting materials
-		{210814, "Artisan's Acuity"}, -- Profession currency
-		{206350, "Radiant Remnant"}, -- Crafting material
-	},
-
-	-- Dragonflight
-	[CATEGORY.DRAGONFLIGHT] = {
-		-- Obsidian Key materials (benefits from conversion tracking)
-		{191251, "Key Fragments"}, -- 30 fragments + 3 framings → 1 key
-		{193201, "Key Framing"}, -- 3 framings + 30 fragments → 1 key
-		{191264, "Restored Obsidian Key"}, -- The actual key
-
-		-- Zaralek Cavern
-		{205188, "Unearthed Fragrant Coin"}, -- Niffen reputation
-		{205985, "Barter Brick"}, -- Vendor currency
-
-		-- Emerald Dream
-		{208066, "Dreamseed"}, -- Emerald Bounty system
-		{207026, "Dreamleaf"}, -- Emerald Dream material
-	},
-
-	-- Shadowlands (optional, can be disabled by category)
-	[CATEGORY.SHADOWLANDS] = {
-		{190189, "Sandworn Relic"}, -- Zereth Mortis
-		{186984, "Korthian Archivists' Key"}, -- Korthia
-	},
-}
-
--- Weekly reset time (US: Tuesday 3pm UTC, EU: Wednesday 7am UTC)
+-- Weekly reset time (US: Tuesday 3pm UTC)
 addon.Data.WeeklyResetDay = 3
 addon.Data.WeeklyResetHour = 15
 
