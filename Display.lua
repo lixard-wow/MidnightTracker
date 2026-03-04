@@ -254,10 +254,6 @@ function Display:CreateCompactCurrencyLine(currency, categoryName)
 			GameTooltip:AddDoubleLine("Amount:", fullAmount, 1, 1, 1, color[1], color[2], color[3])
 		end
 
-		if currency.weeklyMax and currency.weeklyMax > 0 and currency.earnedThisWeek then
-			GameTooltip:AddDoubleLine("This Week:", format("%s / %s", addon.Utils:FormatNumber(currency.earnedThisWeek), addon.Utils:FormatNumber(currency.weeklyMax)), 1, 1, 1, 1, 1, 0)
-		end
-
 		GameTooltip:Show()
 	end)
 

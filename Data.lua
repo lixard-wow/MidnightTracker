@@ -27,10 +27,10 @@ addon.Data.Categories = CATEGORY
 addon.Data.Currencies = {
 	[CATEGORY.MIDNIGHT] = {
 		{3383, "Adventurer Dawncrest", nil, nil},
-		{3342, "Veteran Dawncrest", nil, nil},
+		{3341, "Veteran Dawncrest", nil, nil},
 		{3343, "Champion Dawncrest", nil, nil},
 		{3345, "Hero Dawncrest", nil, nil},
-		{3346, "Myth Dawncrest", nil, nil},
+		{3348, "Myth Dawncrest", nil, nil},
 		{3319, "Twilight's Blade Insignia", nil, nil},
 		{3379, "Brimming Arcana", nil, nil},
 		{3316, "Voidlight Marl", nil, nil},

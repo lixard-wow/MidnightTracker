@@ -279,13 +279,14 @@ function Tracker:GetAllTrackables()
 
 					if cached then
 						local effectiveWeeklyMax = self:GetEffectiveWeeklyCap(cached, weeklyMax)
+						-- For total-earned currencies (crests), show total earned and the season cap
+						local displayAmount = cached.quantity
+						local displayMax = cached.maxQuantity or weeklyMax
+						if cached.useTotalEarnedForMaxQty then
+							displayAmount = cached.totalEarned or cached.quantity
+						end
+
 						if cached.discovered and (cached.quantity > 0 or showZero) then
-							-- For total-earned currencies (crests), show total earned and the season cap
-							local displayAmount = cached.quantity
-							local displayMax = cached.maxQuantity or weeklyMax
-							if cached.useTotalEarnedForMaxQty then
-								displayAmount = cached.totalEarned or cached.quantity
-							end
 							table.insert(categoryData.currencies, {
 								id = currencyID,
 								name = displayName or cached.name,
