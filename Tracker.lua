@@ -291,6 +291,7 @@ function Tracker:GetAllTrackables()
 								id = currencyID,
 								name = displayName or cached.name,
 								amount = displayAmount,
+								quantity = cached.quantity,
 								icon = cached.iconFileID,
 								max = displayMax,
 								weeklyMax = effectiveWeeklyMax,

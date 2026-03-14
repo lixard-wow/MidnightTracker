@@ -254,6 +254,10 @@ function Display:CreateCompactCurrencyLine(currency, categoryName)
 			GameTooltip:AddDoubleLine("Amount:", fullAmount, 1, 1, 1, color[1], color[2], color[3])
 		end
 
+		if currency.quantity and currency.quantity ~= currency.amount then
+			GameTooltip:AddDoubleLine("On Hand:", addon.Utils:FormatNumber(currency.quantity), 1, 1, 1, 1, 1, 1)
+		end
+
 		GameTooltip:Show()
 	end)
 
@@ -294,12 +298,8 @@ end
 function Display:UpdateCityVisibility()
 	if not displayFrame then return end
 
-	if IsResting() then
-		if not addon.db.display.hidden then
-			displayFrame:Show()
-		end
-	else
-		displayFrame:Hide()
+	if not addon.db.display.hidden then
+		displayFrame:Show()
 	end
 end
 
