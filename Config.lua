@@ -6,6 +6,77 @@ local Config = addon.Config
 
 local configFrame
 
+-- House style palette — matches CharacterStats/UI/ConfigWidgets.lua's COLORS table
+-- exactly (background/textPrimary/textMuted/accentGold/border/divider) so config
+-- frames read as one family. See project_wow_addon_branding memory.
+local PALETTE = {
+	background      = {0.06, 0.06, 0.06, 0.98},
+	backgroundLight = {0.12, 0.12, 0.12, 1},
+	titlebar        = {0.08, 0.08, 0.08, 1},
+	fill            = {0.05, 0.05, 0.05, 1},
+	track           = {0.22, 0.22, 0.22, 1},
+	border          = {0.22, 0.22, 0.22, 1},
+	divider         = {0.30, 0.30, 0.30, 1},
+	accent          = {0.78, 0.66, 0.22, 1},
+	accentDim       = {0.78, 0.66, 0.22, 0.35},
+	textPrimary     = {0.92, 0.91, 0.86, 1},
+	textMuted       = {0.70, 0.70, 0.70, 1},
+	close           = {0.70, 0.70, 0.70, 1},
+	closeHover      = {0.82, 0.24, 0.24, 1},
+}
+
+local CIRCLE_MASK = "Interface\\CHARACTERFRAME\\TempPortraitAlphaMask"
+
+local function Grad(tex, orientation, from, to)
+	tex:SetColorTexture(1, 1, 1, 1) -- base texture SetGradient modulates; without it there's nothing to render
+	tex:SetGradient(orientation, CreateColor(unpack(from)), CreateColor(unpack(to)))
+end
+
+-- Four 1px edge strips on the BORDER draw layer, always above a fill texture
+-- left on BACKGROUND — the same technique CharacterStats/ConfigWidgets.lua uses.
+local function CreateBorder(frame, thickness, color)
+	local t = thickness or 1
+	local border = {}
+
+	border.top = frame:CreateTexture(nil, "BORDER")
+	border.top:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+	border.top:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+	border.top:SetHeight(t)
+
+	border.bottom = frame:CreateTexture(nil, "BORDER")
+	border.bottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
+	border.bottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+	border.bottom:SetHeight(t)
+
+	border.left = frame:CreateTexture(nil, "BORDER")
+	border.left:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+	border.left:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
+	border.left:SetWidth(t)
+
+	border.right = frame:CreateTexture(nil, "BORDER")
+	border.right:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+	border.right:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+	border.right:SetWidth(t)
+
+	function border:SetColor(r, g, b, a)
+		self.top:SetColorTexture(r, g, b, a)
+		self.bottom:SetColorTexture(r, g, b, a)
+		self.left:SetColorTexture(r, g, b, a)
+		self.right:SetColorTexture(r, g, b, a)
+	end
+
+	border:SetColor(unpack(color))
+	return border
+end
+
+local function MaskCircle(owner, texture)
+	local mask = owner:CreateMaskTexture()
+	mask:SetTexture(CIRCLE_MASK)
+	mask:SetAllPoints(texture)
+	texture:AddMaskTexture(mask)
+	return mask
+end
+
 -- Helper: Create custom slider
 local function CreateCustomSlider(parent, width, min, max, step, defaultValue, label)
 	local slider = CreateFrame("Frame", nil, parent)
@@ -15,34 +86,40 @@ local function CreateCustomSlider(parent, width, min, max, step, defaultValue, l
 	slider.label = slider:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	slider.label:SetPoint("BOTTOMLEFT", slider, "TOPLEFT", 0, 5)
 	slider.label:SetText(label)
-	slider.label:SetTextColor(0.95, 0.95, 0.95)
+	slider.label:SetTextColor(unpack(PALETTE.textPrimary))
 
 	-- Value text (right upper)
 	slider.valueText = slider:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	slider.valueText:SetPoint("BOTTOMRIGHT", slider, "TOPRIGHT", 0, 5)
-	slider.valueText:SetTextColor(0.95, 0.95, 0.95)
+	slider.valueText:SetTextColor(unpack(PALETTE.accent))
 
 	-- Track background
 	local track = slider:CreateTexture(nil, "BACKGROUND")
 	track:SetPoint("LEFT", 0, 0)
 	track:SetPoint("RIGHT", 0, 0)
-	track:SetHeight(4)
-	track:SetColorTexture(0.22, 0.22, 0.24, 1)
+	track:SetHeight(3)
+	track:SetColorTexture(unpack(PALETTE.track))
 
-	-- Track fill (shows current value)
-	slider.fill = slider:CreateTexture(nil, "BORDER")
+	-- Track fill (shows current value, gradient toward the accent)
+	slider.fill = slider:CreateTexture(nil, "ARTWORK")
 	slider.fill:SetPoint("LEFT", 0, 0)
-	slider.fill:SetHeight(4)
-	slider.fill:SetColorTexture(0.5, 0.58, 0.46, 1)
+	slider.fill:SetHeight(3)
 
-	-- Thumb (draggable button)
+	-- Thumb (draggable button) — masked circle with a thin dark ring for depth
 	slider.thumb = CreateFrame("Button", nil, slider)
-	slider.thumb:SetSize(16, 16)
+	slider.thumb:SetSize(14, 14)
 	slider.thumb:SetPoint("LEFT", 0, 0)
 
-	local thumbTex = slider.thumb:CreateTexture(nil, "OVERLAY")
-	thumbTex:SetAllPoints()
-	thumbTex:SetColorTexture(0.56, 0.63, 0.53, 1)
+	local thumbRing = slider.thumb:CreateTexture(nil, "BACKGROUND")
+	thumbRing:SetAllPoints()
+	thumbRing:SetColorTexture(0, 0, 0, 0.6)
+	MaskCircle(slider.thumb, thumbRing)
+
+	local thumbTex = slider.thumb:CreateTexture(nil, "ARTWORK")
+	thumbTex:SetPoint("TOPLEFT", 2, -2)
+	thumbTex:SetPoint("BOTTOMRIGHT", -2, 2)
+	thumbTex:SetColorTexture(unpack(PALETTE.accent))
+	MaskCircle(slider.thumb, thumbTex)
 
 	-- Slider properties
 	slider.min = min
@@ -53,8 +130,9 @@ local function CreateCustomSlider(parent, width, min, max, step, defaultValue, l
 	-- Update visual position
 	function slider:UpdatePosition()
 		local percent = (self.value - self.min) / (self.max - self.min)
-		self.thumb:SetPoint("LEFT", percent * width, 0)
-		self.fill:SetWidth(percent * width)
+		self.thumb:SetPoint("LEFT", percent * width - 7, 0)
+		self.fill:SetWidth(math.max(0.01, percent * width))
+		Grad(self.fill, "HORIZONTAL", PALETTE.accentDim, PALETTE.accent)
 	end
 
 	-- Set value
@@ -127,34 +205,31 @@ local function CreateCustomSlider(parent, width, min, max, step, defaultValue, l
 	return slider
 end
 
--- Helper: Create custom checkbox
+-- Helper: Create custom checkbox (outline box + accent checkmark glyph)
 local function CreateCustomCheckbox(parent, label, checked)
 	local checkbox = CreateFrame("Button", nil, parent)
-	checkbox:SetSize(20, 20)
+	checkbox:SetSize(18, 18)
 
-	-- Box background
-	local bg = checkbox:CreateTexture(nil, "BACKGROUND")
-	bg:SetAllPoints()
-	bg:SetColorTexture(0.56, 0.63, 0.53, 1)
+	local fill = checkbox:CreateTexture(nil, "BACKGROUND")
+	fill:SetAllPoints()
+	fill:SetColorTexture(unpack(PALETTE.fill))
 
-	-- Box border
-	local border = checkbox:CreateTexture(nil, "BORDER")
-	border:SetPoint("TOPLEFT", checkbox, "TOPLEFT", 1, -1)
-	border:SetPoint("BOTTOMRIGHT", checkbox, "BOTTOMRIGHT", -1, 1)
-	border:SetColorTexture(0, 0, 0, 1)
+	checkbox.ring = CreateBorder(checkbox, 1, PALETTE.textMuted)
 
-	-- Check mark
-	checkbox.check = checkbox:CreateTexture(nil, "OVERLAY")
-	checkbox.check:SetPoint("TOPLEFT", checkbox, "TOPLEFT", 4, -4)
-	checkbox.check:SetPoint("BOTTOMRIGHT", checkbox, "BOTTOMRIGHT", -4, 4)
-	checkbox.check:SetColorTexture(0.56, 0.63, 0.53, 1)
+	-- Check mark (Blizzard's own checkbox-check art, tinted — text glyphs render as
+	-- a blank tofu box on this client's font for the Unicode checkmark character)
+	checkbox.check = checkbox:CreateTexture(nil, "ARTWORK")
+	checkbox.check:SetPoint("CENTER", 0, 0)
+	checkbox.check:SetSize(16, 16)
+	checkbox.check:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
+	checkbox.check:SetVertexColor(unpack(PALETTE.accent))
 	checkbox.check:Hide()
 
 	-- Label
 	checkbox.label = checkbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	checkbox.label:SetPoint("LEFT", checkbox, "RIGHT", 8, 0)
 	checkbox.label:SetText(label)
-	checkbox.label:SetTextColor(0.95, 0.95, 0.95)
+	checkbox.label:SetTextColor(unpack(PALETTE.textPrimary))
 	checkbox.label:SetJustifyH("LEFT")
 
 	-- State
@@ -164,8 +239,10 @@ local function CreateCustomCheckbox(parent, label, checked)
 	function checkbox:UpdateVisual()
 		if self.checked then
 			self.check:Show()
+			self.ring:SetColor(unpack(PALETTE.accent))
 		else
 			self.check:Hide()
+			self.ring:SetColor(unpack(PALETTE.textMuted))
 		end
 	end
 
@@ -197,7 +274,7 @@ local function CreateCustomCheckbox(parent, label, checked)
 	return checkbox
 end
 
--- Helper: Create custom button
+-- Helper: Create custom button (accent outline, fills solid when selected/disabled)
 local function CreateCustomButton(parent, width, height, text)
 	local button = CreateFrame("Button", nil, parent)
 	button:SetSize(width, height)
@@ -205,34 +282,32 @@ local function CreateCustomButton(parent, width, height, text)
 	-- Background
 	button.bg = button:CreateTexture(nil, "BACKGROUND")
 	button.bg:SetAllPoints()
-	button.bg:SetColorTexture(0, 0, 0, 1)
+	button.bg:SetColorTexture(unpack(PALETTE.fill))
 
-	-- Border
-	local border = button:CreateTexture(nil, "BORDER")
-	border:SetPoint("TOPLEFT", -1, 1)
-	border:SetPoint("BOTTOMRIGHT", 1, -1)
-	border:SetColorTexture(0.56, 0.63, 0.53, 1)
+	button.ring = CreateBorder(button, 1, PALETTE.accentDim)
 
 	-- Highlight
 	button.highlight = button:CreateTexture(nil, "HIGHLIGHT")
 	button.highlight:SetAllPoints()
-	button.highlight:SetColorTexture(0.56, 0.63, 0.53, 0.18)
+	button.highlight:SetColorTexture(PALETTE.accent[1], PALETTE.accent[2], PALETTE.accent[3], 0.15)
 
 	-- Text
 	button.text = button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	button.text:SetPoint("CENTER")
 	button.text:SetText(text)
-	button.text:SetTextColor(0.95, 0.95, 0.95)
+	button.text:SetTextColor(unpack(PALETTE.textPrimary))
 
 	-- Disabled state (selected)
 	function button:SetEnabled(enabled)
 		if enabled then
-			self.bg:SetColorTexture(0.07, 0.07, 0.09, 1)
-			self.text:SetTextColor(0.95, 0.95, 0.95)
+			self.bg:SetColorTexture(unpack(PALETTE.fill))
+			self.ring:SetColor(unpack(PALETTE.accentDim))
+			self.text:SetTextColor(unpack(PALETTE.textPrimary))
 			self:Enable()
 		else
-			self.bg:SetColorTexture(0.09, 0.11, 0.09, 1)
-			self.text:SetTextColor(0.56, 0.63, 0.53, 1)
+			self.bg:SetColorTexture(unpack(PALETTE.accent))
+			self.ring:SetColor(unpack(PALETTE.accent))
+			self.text:SetTextColor(0.12, 0.10, 0.06, 1)
 			self:Disable()
 		end
 	end
@@ -254,47 +329,60 @@ function Config:Initialize()
 	configFrame:Hide()
 	configFrame:SetFrameStrata("DIALOG")
 
-	-- Background
+	-- Background fill + outer border (flat, matching CharacterStats' popup exactly)
 	local bg = configFrame:CreateTexture(nil, "BACKGROUND")
 	bg:SetAllPoints()
-	bg:SetColorTexture(0.04, 0.04, 0.05, 0.98)
-
-	-- Border
-	local border = configFrame:CreateTexture(nil, "BORDER")
-	border:SetPoint("TOPLEFT", -2, 2)
-	border:SetPoint("BOTTOMRIGHT", 2, -2)
-	border:SetColorTexture(0, 0, 0, 1)
+	bg:SetColorTexture(unpack(PALETTE.background))
+	CreateBorder(configFrame, 1, PALETTE.border)
 
 	-- Title bar
 	local titleBar = configFrame:CreateTexture(nil, "ARTWORK")
 	titleBar:SetPoint("TOPLEFT", 0, 0)
 	titleBar:SetPoint("TOPRIGHT", 0, 0)
 	titleBar:SetHeight(40)
-	titleBar:SetColorTexture(0, 0, 0, 1)
+	titleBar:SetColorTexture(unpack(PALETTE.titlebar))
+
+	local titleDivider = configFrame:CreateTexture(nil, "ARTWORK")
+	titleDivider:SetPoint("TOPLEFT", titleBar, "BOTTOMLEFT", 0, 0)
+	titleDivider:SetPoint("TOPRIGHT", titleBar, "BOTTOMRIGHT", 0, 0)
+	titleDivider:SetHeight(1)
+	titleDivider:SetColorTexture(unpack(PALETTE.divider))
 
 	-- Title
 	local title = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-	title:SetPoint("TOP", 0, -12)
-	title:SetText("MidnightTracker Settings")
-	title:SetTextColor(0.56, 0.63, 0.53)
+	title:SetPoint("LEFT", titleBar, "LEFT", 12, 0)
+	title:SetText("MidnightTracker")
+	title:SetTextColor(unpack(PALETTE.textPrimary))
 
-	-- Close button
+	-- Close button — masked circle, muted by default, red on hover
 	local closeBtn = CreateFrame("Button", nil, configFrame)
-	closeBtn:SetSize(25, 25)
-	closeBtn:SetPoint("TOPRIGHT", -8, -8)
+	closeBtn:SetSize(24, 24)
+	closeBtn:SetPoint("TOPRIGHT", -10, -8)
 
-	local closeBg = closeBtn:CreateTexture(nil, "BACKGROUND")
-	closeBg:SetAllPoints()
-	closeBg:SetColorTexture(0.45, 0.12, 0.12, 1)
+	local closeRing = closeBtn:CreateTexture(nil, "BACKGROUND")
+	closeRing:SetAllPoints()
+	closeRing:SetColorTexture(0, 0, 0, 0.5)
+	MaskCircle(closeBtn, closeRing)
+
+	local closeBg = closeBtn:CreateTexture(nil, "ARTWORK")
+	closeBg:SetPoint("TOPLEFT", 1, -1)
+	closeBg:SetPoint("BOTTOMRIGHT", -1, 1)
+	closeBg:SetColorTexture(unpack(PALETTE.fill))
+	MaskCircle(closeBtn, closeBg)
 
 	local closeText = closeBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	closeText:SetPoint("CENTER", 0, 1)
-	closeText:SetText("×")
-	closeText:SetTextColor(1, 1, 1)
+	closeText:SetText("\195\151") -- UTF-8 multiplication sign
+	closeText:SetTextColor(unpack(PALETTE.close))
 
-	local closeHighlight = closeBtn:CreateTexture(nil, "HIGHLIGHT")
-	closeHighlight:SetAllPoints()
-	closeHighlight:SetColorTexture(1, 0.2, 0.2, 0.35)
+	closeBtn:SetScript("OnEnter", function()
+		closeBg:SetColorTexture(unpack(PALETTE.closeHover))
+		closeText:SetTextColor(1, 1, 1, 1)
+	end)
+	closeBtn:SetScript("OnLeave", function()
+		closeBg:SetColorTexture(unpack(PALETTE.fill))
+		closeText:SetTextColor(unpack(PALETTE.close))
+	end)
 
 	closeBtn:SetScript("OnClick", function()
 		Config:Hide()
@@ -318,34 +406,74 @@ function Config:BuildSettings(parent)
 	local tabStartY = -50
 
 	for i, tabName in ipairs(tabNames) do
-		-- Create custom tab button
+		-- Create custom tab button (bordered card, matching CharacterStats'
+		-- ConfigWidgets.CreateTabButton: dark fill, neutral border when inactive,
+		-- gold top/side border + open bottom edge when active)
 		local tab = CreateFrame("Button", nil, parent)
 		tab:SetSize(tabWidth, tabHeight)
 		tab:SetPoint("TOPLEFT", 15 + ((i-1) * (tabWidth + tabSpacing)), tabStartY)
 		tab:SetFrameLevel(parent:GetFrameLevel() + 5)
 
-		-- Tab background
 		tab.bg = tab:CreateTexture(nil, "BACKGROUND")
 		tab.bg:SetAllPoints()
-		tab.bg:SetColorTexture(0.07, 0.07, 0.09, 1)
 
-		-- Tab border
-		local border = tab:CreateTexture(nil, "BORDER")
-		border:SetPoint("TOPLEFT", -1, 1)
-		border:SetPoint("BOTTOMRIGHT", 1, -1)
-		border:SetColorTexture(0.56, 0.63, 0.53, 1)
+		tab.topBorder = tab:CreateTexture(nil, "BORDER")
+		tab.topBorder:SetPoint("TOPLEFT", 0, 0)
+		tab.topBorder:SetPoint("TOPRIGHT", 0, 0)
+		tab.topBorder:SetHeight(1)
 
-		-- Tab highlight on hover
-		tab.highlight = tab:CreateTexture(nil, "HIGHLIGHT")
-		tab.highlight:SetAllPoints()
-		tab.highlight:SetColorTexture(0.56, 0.63, 0.53, 0.18)
+		tab.leftBorder = tab:CreateTexture(nil, "BORDER")
+		tab.leftBorder:SetPoint("TOPLEFT", 0, 0)
+		tab.leftBorder:SetPoint("BOTTOMLEFT", 0, 0)
+		tab.leftBorder:SetWidth(1)
 
-		-- Tab text
+		tab.rightBorder = tab:CreateTexture(nil, "BORDER")
+		tab.rightBorder:SetPoint("TOPRIGHT", 0, 0)
+		tab.rightBorder:SetPoint("BOTTOMRIGHT", 0, 0)
+		tab.rightBorder:SetWidth(1)
+
+		tab.bottomBorder = tab:CreateTexture(nil, "BORDER")
+		tab.bottomBorder:SetPoint("BOTTOMLEFT", 0, 0)
+		tab.bottomBorder:SetPoint("BOTTOMRIGHT", 0, 0)
+		tab.bottomBorder:SetHeight(1)
+
 		tab.text = tab:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 		tab.text:SetPoint("CENTER")
 		tab.text:SetText(tabName)
-		tab.text:SetTextColor(0.95, 0.95, 0.95)
 
+		function tab:SetActive(active)
+			self._active = active
+			if active then
+				self.bg:SetColorTexture(unpack(PALETTE.background))
+				self.topBorder:SetColorTexture(unpack(PALETTE.accent))
+				self.leftBorder:SetColorTexture(PALETTE.accent[1], PALETTE.accent[2], PALETTE.accent[3], 0.6)
+				self.rightBorder:SetColorTexture(PALETTE.accent[1], PALETTE.accent[2], PALETTE.accent[3], 0.6)
+				self.bottomBorder:Hide()
+				self.text:SetTextColor(unpack(PALETTE.textPrimary))
+			else
+				self.bg:SetColorTexture(unpack(PALETTE.fill))
+				self.topBorder:SetColorTexture(unpack(PALETTE.border))
+				self.leftBorder:SetColorTexture(unpack(PALETTE.border))
+				self.rightBorder:SetColorTexture(unpack(PALETTE.border))
+				self.bottomBorder:SetColorTexture(unpack(PALETTE.border))
+				self.bottomBorder:Show()
+				self.text:SetTextColor(unpack(PALETTE.textMuted))
+			end
+		end
+
+		tab:SetScript("OnEnter", function(self)
+			if not self._active then
+				self.bg:SetColorTexture(unpack(PALETTE.backgroundLight))
+				self.text:SetTextColor(unpack(PALETTE.textPrimary))
+			end
+		end)
+		tab:SetScript("OnLeave", function(self)
+			if not self._active then
+				self:SetActive(false)
+			end
+		end)
+
+		tab:SetActive(false)
 		tabs[i] = tab
 	end
 
@@ -360,7 +488,7 @@ function Config:BuildSettings(parent)
 	local scrollbar = CreateFrame("Slider", nil, scrollFrame)
 	scrollbar:SetPoint("TOPRIGHT", 0, -5)
 	scrollbar:SetPoint("BOTTOMRIGHT", 0, 5)
-	scrollbar:SetWidth(12)
+	scrollbar:SetWidth(8)
 	scrollbar:SetOrientation("VERTICAL")
 	scrollbar:SetMinMaxValues(0, 100)
 	scrollbar:SetValue(0)
@@ -368,12 +496,12 @@ function Config:BuildSettings(parent)
 	-- Scrollbar background
 	local scrollbarBg = scrollbar:CreateTexture(nil, "BACKGROUND")
 	scrollbarBg:SetAllPoints()
-	scrollbarBg:SetColorTexture(0.07, 0.07, 0.09, 1)
+	scrollbarBg:SetColorTexture(unpack(PALETTE.track))
 
 	-- Scrollbar thumb
 	local scrollbarThumb = scrollbar:CreateTexture(nil, "OVERLAY")
-	scrollbarThumb:SetSize(12, 30)
-	scrollbarThumb:SetColorTexture(0.56, 0.63, 0.53, 1)
+	scrollbarThumb:SetSize(8, 30)
+	scrollbarThumb:SetColorTexture(unpack(PALETTE.accentDim))
 	scrollbar:SetThumbTexture(scrollbarThumb)
 
 	-- Mouse wheel scrolling
@@ -439,15 +567,11 @@ function Config:BuildSettings(parent)
 		tabs[i]:SetScript("OnClick", function()
 			-- Deselect all tabs
 			for j, otherTab in ipairs(tabs) do
-				otherTab.bg:SetColorTexture(0.07, 0.07, 0.09, 1)
-				otherTab.text:SetTextColor(0.95, 0.95, 0.95)
-				otherTab:SetEnabled(true)
+				otherTab:SetActive(false)
 				tabContents[j]:Hide()
 			end
 			-- Select this tab
-			tabs[i].bg:SetColorTexture(0.09, 0.11, 0.09, 1)
-			tabs[i].text:SetTextColor(0.56, 0.63, 0.53)
-			tabs[i]:SetEnabled(false)
+			tabs[i]:SetActive(true)
 			content:Show()
 			-- Reset scroll position and update scroll range
 			UpdateScrollRange(i)
@@ -456,9 +580,7 @@ function Config:BuildSettings(parent)
 
 	-- Show first tab by default
 	tabContents[1]:Show()
-	tabs[1].bg:SetColorTexture(0.09, 0.11, 0.09, 1)
-	tabs[1].text:SetTextColor(0.56, 0.63, 0.53)
-	tabs[1]:SetEnabled(false)
+	tabs[1]:SetActive(true)
 
 	-- === TAB 1: DISPLAY SETTINGS ===
 	self:BuildDisplaySettings(tabContents[1])
@@ -477,7 +599,7 @@ function Config:BuildDisplaySettings(parent)
 	local sizeLabel = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	sizeLabel:SetPoint("TOPLEFT", 10, yOffset)
 	sizeLabel:SetText("Display Size:")
-	sizeLabel:SetTextColor(0.95, 0.95, 0.95)
+	sizeLabel:SetTextColor(unpack(PALETTE.textPrimary))
 	yOffset = yOffset - 25
 
 	local sizePresets = {
@@ -633,7 +755,7 @@ function Config:BuildGeneralSettings(parent)
 	local vaultLabel = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	vaultLabel:SetPoint("TOPLEFT", 10, yOffset)
 	vaultLabel:SetText("Great Vault:")
-	vaultLabel:SetTextColor(0.56, 0.63, 0.53)
+	vaultLabel:SetTextColor(unpack(PALETTE.accent))
 	yOffset = yOffset - 25
 
 	-- Show Great Vault checkbox
@@ -689,7 +811,7 @@ function Config:BuildExpansionsSettings(parent)
 	local instructionText = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	instructionText:SetPoint("TOPLEFT", 10, yOffset)
 	instructionText:SetText("Check expansion to enable/expand. Uncheck to disable/collapse. Uncheck individual currencies to hide them.")
-	instructionText:SetTextColor(0.8, 0.8, 0.8)
+	instructionText:SetTextColor(unpack(PALETTE.textMuted))
 
 	-- Ordered category list
 	local orderedCategories = {
@@ -739,7 +861,7 @@ function Config:BuildExpansionsSettings(parent)
 			local catCheck = CreateCustomCheckbox(expansionFrame, categoryInfo.name, addon.db.settings.categories[categoryInfo.setting] ~= false)
 			catCheck:SetPoint("TOPLEFT", 0, frameYOffset)
 			catCheck.label:SetFontObject("GameFontNormalLarge")
-			catCheck.label:SetTextColor(0.56, 0.63, 0.53)
+			catCheck.label:SetTextColor(unpack(PALETTE.accent))
 
 			frameYOffset = frameYOffset - 30
 
@@ -796,7 +918,7 @@ function Config:BuildExpansionsSettings(parent)
 			separator:SetPoint("LEFT", 0, 0)
 			separator:SetPoint("RIGHT", 0, 0)
 			separator:SetPoint("TOP", 0, -(expandedHeight - 5))
-			separator:SetColorTexture(0.56, 0.63, 0.53, 0.45)
+			separator:SetColorTexture(unpack(PALETTE.divider))
 
 			-- Function to update collapsed state
 			local function UpdateCategoryState(enabled)
@@ -807,7 +929,7 @@ function Config:BuildExpansionsSettings(parent)
 					end
 					separator:Show()
 					expansionFrame:SetHeight(expandedHeight)
-					catCheck.label:SetTextColor(0.56, 0.63, 0.53)
+					catCheck.label:SetTextColor(unpack(PALETTE.accent))
 				else
 					-- Collapsed: hide all currencies and separator
 					for _, currCheck in ipairs(currencyCheckboxes) do
@@ -815,7 +937,7 @@ function Config:BuildExpansionsSettings(parent)
 					end
 					separator:Hide()
 					expansionFrame:SetHeight(collapsedHeight)
-					catCheck.label:SetTextColor(0.6, 0.6, 0.6)
+					catCheck.label:SetTextColor(unpack(PALETTE.textMuted))
 				end
 				-- Recalculate total content height
 				RecalculateContentHeight()
