@@ -155,11 +155,11 @@ function Display:UpdateDisplay()
 	-- Get display settings
 	local iconsPerRow = addon.db.display.iconsPerRow or 3
 	local iconSize = addon.db.display.iconSize or 18
-	local columnWidth = iconSize + 34 -- Icon + text + padding
 
 	local xOffset = 2
 	local yOffset = -5
 	local iconCount = 0
+	local colGap = 6 -- gap between columns, matches the icon-to-text gap for even left/right padding
 
 	-- Add Great Vault progress if enabled
 	local startYOffset = yOffset
@@ -167,26 +167,44 @@ function Display:UpdateDisplay()
 		yOffset = self:AddGreatVaultDisplay(data.greatVault, yOffset)
 	end
 
-	-- Add currencies by expansion (starting from where vault ended)
+	-- Create all currency line frames first (each sized to fit its own text,
+	-- not a fixed worst-case width) so columns can be sized per-column below.
+	local items = {}
 	for _, category in ipairs(sortedCategories) do
 		for _, currency in ipairs(category.currencies) do
-			local currFrame = self:CreateCompactCurrencyLine(currency, category.name)
-
-			-- Calculate position (grid layout)
-			local col = iconCount % iconsPerRow
-			local row = math.floor(iconCount / iconsPerRow)
-
-			currFrame:SetPoint("TOPLEFT", displayFrame.content, "TOPLEFT",
-				xOffset + (col * columnWidth), yOffset - (row * 24))
-
-			table.insert(currencyFrames, currFrame)
-			iconCount = iconCount + 1
+			table.insert(items, self:CreateCompactCurrencyLine(currency, category.name))
 		end
+	end
+
+	-- Size each column to the widest item that lands in it, so every line's
+	-- right-side padding before the next column matches its left-side padding.
+	local colWidths = {}
+	for i, currFrame in ipairs(items) do
+		local col = (i - 1) % iconsPerRow
+		colWidths[col] = math.max(colWidths[col] or 0, currFrame.naturalWidth or (iconSize + 34))
+	end
+
+	local colOffsets = {}
+	local runningOffset = 0
+	for c = 0, iconsPerRow - 1 do
+		colOffsets[c] = runningOffset
+		runningOffset = runningOffset + (colWidths[c] or (iconSize + 34)) + colGap
+	end
+
+	for i, currFrame in ipairs(items) do
+		local col = (i - 1) % iconsPerRow
+		local row = math.floor((i - 1) / iconsPerRow)
+
+		currFrame:SetPoint("TOPLEFT", displayFrame.content, "TOPLEFT",
+			xOffset + colOffsets[col], yOffset - (row * 24))
+
+		table.insert(currencyFrames, currFrame)
+		iconCount = iconCount + 1
 	end
 
 	-- Calculate size based on content
 	local rows = math.max(1, math.ceil(iconCount / iconsPerRow))
-	local contentWidth = (iconsPerRow * columnWidth) + 4
+	local contentWidth = runningOffset + 4
 
 	-- Calculate total height including Great Vault
 	local vaultHeight = math.abs(yOffset) - 5 -- Height used by vault before currencies start
@@ -198,7 +216,9 @@ function Display:UpdateDisplay()
 	displayFrame.content:SetSize(contentWidth, contentHeight)
 end
 
--- Helper: Get gear quality color based on activity level
+
+-- Helper: Get gear quality color based on activity level (raid difficulty ID,
+-- M+ key level, or delve tier depending on activityType)
 local function GetVaultQualityColor(activityType, level)
 	if activityType == "Raid" then
 		-- Raid difficulty IDs: 17=LFR, 14=Normal, 15=Heroic, 16=Mythic
@@ -243,6 +263,17 @@ local function GetVaultQualityColor(activityType, level)
 	return 0.6, 0.6, 0.6 -- Default grey
 end
 
+-- Resolve the font template for the current display.fontSize setting,
+-- shared by currency lines and Great Vault labels so they stay in sync.
+function Display:GetFontString()
+	if addon.db.display.fontSize == "large" then
+		return "GameFontNormal"
+	elseif addon.db.display.fontSize == "small" then
+		return "GameFontHighlightSmall"
+	end
+	return "GameFontNormalSmall"
+end
+
 -- Add Great Vault progress display
 function Display:AddGreatVaultDisplay(vaultData, yOffset)
 	-- Add each vault type that's enabled vertically
@@ -262,30 +293,41 @@ function Display:AddGreatVaultDisplay(vaultData, yOffset)
 			frame:SetPoint("TOPLEFT", displayFrame.content, "TOPLEFT", xOffset, yOffset)
 
 			-- Name label
-			local nameText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+			local nameText = frame:CreateFontString(nil, "OVERLAY", self:GetFontString())
 			nameText:SetPoint("LEFT", 0, 0)
 			nameText:SetText(vaultType.name .. ":")
 			nameText:SetTextColor(0.3, 0.9, 1)
 
-			-- Calculate how many slots unlocked (0-3)
+			-- Show how many of your total landed in each slot's own segment
+			-- (capped at that segment's size, e.g. raid 2/4/6 = segments of 2/2/2).
+			-- Full segment = reward quality color for that slot, partial = red
+			-- (in progress), zero = white (not started).
 			local current = vaultType.data.current or 0
-			local thresholds = vaultType.data.thresholds or {3, 5, 8}
-			local slotsUnlocked = 0
-			for _, threshold in ipairs(thresholds) do
-				if current >= threshold then
-					slotsUnlocked = slotsUnlocked + 1
+			local thresholds = vaultType.data.thresholds or {2, 4, 8}
+			local levels = vaultType.data.levels or {}
+			local parts = {}
+			local remaining = current
+			local prevThreshold = 0
+			for i, threshold in ipairs(thresholds) do
+				local capacity = threshold - prevThreshold
+				local fill = math.min(remaining, capacity)
+				remaining = remaining - fill
+
+				if capacity > 0 and fill >= capacity then
+					local r, g, b = GetVaultQualityColor(vaultType.name, levels[i] or 0)
+					table.insert(parts, addon.Utils:ColorText(tostring(fill), r, g, b))
+				elseif fill > 0 then
+					table.insert(parts, addon.Utils:ColorText(tostring(fill), 1, 0, 0))
+				else
+					table.insert(parts, addon.Utils:ColorText(tostring(fill), 1, 1, 1))
 				end
+
+				prevThreshold = threshold
 			end
 
-			-- Get level and determine color based on gear quality
-			local level = vaultType.data.level or 0
-			local r, g, b = GetVaultQualityColor(vaultType.name, level)
-
-			-- Progress text showing slots unlocked
-			local progressText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+			local progressText = frame:CreateFontString(nil, "OVERLAY", self:GetFontString())
 			progressText:SetPoint("LEFT", nameText, "RIGHT", 3, 0)
-			progressText:SetText(format("%d/3", slotsUnlocked))
-			progressText:SetTextColor(r, g, b)
+			progressText:SetText(table.concat(parts, "/"))
 
 			frame:Show()
 			table.insert(currencyFrames, frame)
@@ -350,21 +392,37 @@ function Display:CreateCompactCurrencyLine(currency, categoryName)
 		amountText = format("%.1fK", amount / 1000)
 	end
 
-	local color = addon.Data:GetCurrencyColor(amount, currency.max or currency.weeklyMax)
+	local color = addon.Data:GetCurrencyColor(amount, currency.max or currency.cap)
 
-	-- Determine font size based on settings
-	local fontString = "GameFontNormalSmall"
-	if addon.db.display.fontSize == "large" then
-		fontString = "GameFontNormal"
-	elseif addon.db.display.fontSize == "small" then
-		fontString = "GameFontHighlightSmall"
+	-- Crests get an inline readout matching how Blizzard's own tooltip frames it:
+	-- "total"-cap crests show current/cap (the balance itself is the progress),
+	-- "weekly"-cap currencies show earned-this-week/cap, uncapped crests show just the amount.
+	local isCrest = currency.name and currency.name:lower():find("crest") ~= nil
+	local displayText
+	if isCrest and currency.cap and currency.cap > 0 and currency.capType == "total" then
+		local capColor = addon.Data:GetCurrencyColor(amount, currency.cap)
+		displayText = addon.Utils:ColorText(format("%d/%d", amount, currency.cap), capColor[1], capColor[2], capColor[3])
+	elseif isCrest and currency.cap and currency.cap > 0 and currency.capType == "weekly" then
+		local earned = currency.earnedThisWeek or 0
+		local capColor = addon.Data:GetCurrencyColor(earned, currency.cap)
+		local progText = format(" (%d/%d)", earned, currency.cap)
+		displayText = addon.Utils:ColorText(amountText, color[1], color[2], color[3])
+			.. addon.Utils:ColorText(progText, capColor[1], capColor[2], capColor[3])
+	else
+		displayText = addon.Utils:ColorText(amountText, color[1], color[2], color[3])
 	end
 
-	local amountStr = frame:CreateFontString(nil, "OVERLAY", fontString)
+	local amountStr = frame:CreateFontString(nil, "OVERLAY", self:GetFontString())
 	amountStr:SetPoint("LEFT", iconSize + 2, 0)
-	amountStr:SetText(addon.Utils:ColorText(amountText, color[1], color[2], color[3]))
+	amountStr:SetText(displayText)
 	amountStr:SetJustifyH("LEFT")
 	frame.amount = amountStr
+
+	-- Size the frame to its own text (icon + gap + text + a right pad matching the left icon gap)
+	-- so the trailing space before the next column equals the leading space before the icon.
+	local naturalWidth = iconSize + 2 + amountStr:GetStringWidth() + 6
+	frame:SetSize(naturalWidth, iconSize + 4)
+	frame.naturalWidth = naturalWidth
 
 	-- Tooltip on hover
 	frame:SetScript("OnEnter", function(self)
@@ -376,14 +434,30 @@ function Display:CreateCompactCurrencyLine(currency, categoryName)
 		end
 
 		local fullAmount = addon.Utils:FormatNumber(currency.amount or 0)
-		if currency.max and currency.max > 0 then
-			GameTooltip:AddDoubleLine("Amount:", format("%s / %s", fullAmount, addon.Utils:FormatNumber(currency.max)), 1, 1, 1, color[1], color[2], color[3])
-		else
-			GameTooltip:AddDoubleLine("Amount:", fullAmount, 1, 1, 1, color[1], color[2], color[3])
-		end
 
-		if currency.weeklyMax and currency.weeklyMax > 0 and currency.earnedThisWeek then
-			GameTooltip:AddDoubleLine("This Week:", format("%s / %s", addon.Utils:FormatNumber(currency.earnedThisWeek), addon.Utils:FormatNumber(currency.weeklyMax)), 1, 1, 1, 1, 1, 0)
+		if isCrest then
+			if currency.capType == "total" and currency.cap and currency.cap > 0 then
+				-- Season/hold cap: current balance IS the progress, no separate weekly figure
+				local capColor = addon.Data:GetCurrencyColor(currency.amount or 0, currency.cap)
+				GameTooltip:AddDoubleLine("Quantity:", format("%s / %s", fullAmount, addon.Utils:FormatNumber(currency.cap)), 1, 1, 1, capColor[1], capColor[2], capColor[3])
+			elseif currency.capType == "weekly" and currency.cap and currency.cap > 0 then
+				GameTooltip:AddDoubleLine("Total held:", fullAmount, 1, 1, 1, color[1], color[2], color[3])
+				local capColor = addon.Data:GetCurrencyColor(currency.earnedThisWeek or 0, currency.cap)
+				GameTooltip:AddDoubleLine("This week:", format("%s / %s", addon.Utils:FormatNumber(currency.earnedThisWeek or 0), addon.Utils:FormatNumber(currency.cap)), 1, 1, 1, capColor[1], capColor[2], capColor[3])
+			else
+				-- Uncapped: just the quantity, matching Blizzard's own tooltip for uncapped crests
+				GameTooltip:AddDoubleLine("Quantity:", fullAmount, 1, 1, 1, color[1], color[2], color[3])
+			end
+		else
+			if currency.max and currency.max > 0 then
+				GameTooltip:AddDoubleLine("Amount:", format("%s / %s", fullAmount, addon.Utils:FormatNumber(currency.max)), 1, 1, 1, color[1], color[2], color[3])
+			else
+				GameTooltip:AddDoubleLine("Amount:", fullAmount, 1, 1, 1, color[1], color[2], color[3])
+			end
+
+			if currency.capType == "weekly" and currency.cap and currency.cap > 0 and currency.earnedThisWeek then
+				GameTooltip:AddDoubleLine("This Week:", format("%s / %s", addon.Utils:FormatNumber(currency.earnedThisWeek), addon.Utils:FormatNumber(currency.cap)), 1, 1, 1, 1, 1, 0)
+			end
 		end
 
 		GameTooltip:Show()

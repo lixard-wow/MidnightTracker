@@ -55,31 +55,33 @@ function Tracker:UpdateCurrency(currencyID)
 	end
 end
 
--- Resolve effective weekly cap (API-first)
-function Tracker:GetEffectiveWeeklyCap(cached, fallbackWeeklyMax)
+-- Resolve effective cap (API-first). Returns capAmount, capType where capType is
+-- "weekly" (resets weekly, pair with quantityEarnedThisWeek) or "total" (overall
+-- season/hold cap - the current quantity itself IS the progress toward it).
+function Tracker:GetEffectiveCap(cached, fallbackWeeklyMax)
 	if not cached then
 		if fallbackWeeklyMax and fallbackWeeklyMax > 0 then
-			return fallbackWeeklyMax
+			return fallbackWeeklyMax, "weekly"
 		end
-		return nil
+		return nil, "none"
 	end
 
 	-- Preferred source: true weekly cap from API
 	if cached.maxWeeklyQuantity and cached.maxWeeklyQuantity > 0 then
-		return cached.maxWeeklyQuantity
+		return cached.maxWeeklyQuantity, "weekly"
 	end
 
-	-- Some currencies expose capped progress via total-earned max quantity
+	-- Some currencies cap total quantity you can hold/earn, no weekly reset
 	if cached.useTotalEarnedForMaxQty and cached.maxQuantity and cached.maxQuantity > 0 then
-		return cached.maxQuantity
+		return cached.maxQuantity, "total"
 	end
 
 	-- Fallback to static data if provided
 	if fallbackWeeklyMax and fallbackWeeklyMax > 0 then
-		return fallbackWeeklyMax
+		return fallbackWeeklyMax, "weekly"
 	end
 
-	return nil
+	return nil, "none"
 end
 
 -- Get currency data from cache
@@ -147,26 +149,37 @@ function Tracker:GetGreatVaultProgress()
 	if not activities then return nil end
 
 	local progress = {
-		raid = {current = 0, max = 8, thresholds = {2, 4, 8}, level = 0},
-		mythicplus = {current = 0, max = 8, thresholds = {2, 4, 8}, level = 0},
-		world = {current = 0, max = 8, thresholds = {2, 4, 8}, level = 0},
+		raid = {current = 0, thresholds = {2, 4, 6}, levels = {}},
+		mythicplus = {current = 0, thresholds = {2, 4, 8}, levels = {}},
+		world = {current = 0, thresholds = {2, 4, 8}, levels = {}},
 	}
 
-	-- Parse activities and count progress
+	-- Group raw entries per type so per-slot levels can be ordered to match
+	-- our threshold slots (index 1 = lowest threshold, 3 = highest)
+	local raidEntries, mplusEntries, worldEntries = {}, {}, {}
 	for _, activityInfo in ipairs(activities) do
 		if activityInfo.type == Enum.WeeklyRewardChestThresholdType.Raid then
 			progress.raid.current = activityInfo.progress or 0
-			progress.raid.level = math.max(progress.raid.level, activityInfo.level or 0)
+			table.insert(raidEntries, activityInfo)
 		elseif activityInfo.type == Enum.WeeklyRewardChestThresholdType.Activities then
 			-- Mythic+ dungeons
 			progress.mythicplus.current = activityInfo.progress or 0
-			progress.mythicplus.level = math.max(progress.mythicplus.level, activityInfo.level or 0)
+			table.insert(mplusEntries, activityInfo)
 		elseif activityInfo.type == Enum.WeeklyRewardChestThresholdType.World then
 			-- World activities (including delves)
 			progress.world.current = activityInfo.progress or 0
-			progress.world.level = math.max(progress.world.level, activityInfo.level or 0)
+			table.insert(worldEntries, activityInfo)
 		end
 	end
+
+	local function sortByIndex(a, b) return (a.index or 0) < (b.index or 0) end
+	table.sort(raidEntries, sortByIndex)
+	table.sort(mplusEntries, sortByIndex)
+	table.sort(worldEntries, sortByIndex)
+
+	for i, entry in ipairs(raidEntries) do progress.raid.levels[i] = entry.level or 0 end
+	for i, entry in ipairs(mplusEntries) do progress.mythicplus.levels[i] = entry.level or 0 end
+	for i, entry in ipairs(worldEntries) do progress.world.levels[i] = entry.level or 0 end
 
 	return progress
 end
@@ -181,6 +194,8 @@ function Tracker:GetCurrentExpansion()
 
 	-- Major cities (show only that expansion's currencies)
 	local majorCities = {
+		-- Midnight
+		[2393] = "Midnight", -- Silvermoon City
 		-- War Within
 		[2339] = "War Within", -- Dornogal
 		-- Dragonflight
@@ -252,13 +267,13 @@ function Tracker:GetCurrentExpansion()
 				[619] = "Legion", -- Broken Isles
 				[572] = "WoD", -- Draenor
 			}
-			return continentToExpansion[mapInfo.mapID] or "War Within"
+			return continentToExpansion[mapInfo.mapID] or "Midnight"
 		end
 		mapInfo = mapInfo.parentMapID and C_Map.GetMapInfo(mapInfo.parentMapID)
 	end
 
 	-- Default to current expansion if can't determine
-	return "War Within"
+	return "Midnight"
 end
 
 -- Check if currency should be shown based on zone
@@ -351,7 +366,7 @@ function Tracker:GetAllTrackables()
 						local showUndiscovered = addon.db and addon.db.settings and addon.db.settings.showUndiscovered
 
 						if cached then
-							local effectiveWeeklyMax = self:GetEffectiveWeeklyCap(cached, weeklyMax)
+							local capAmount, capType = self:GetEffectiveCap(cached, weeklyMax)
 							-- Show discovered currencies with amount > 0 or when showZero is enabled
 							if cached.discovered and (cached.quantity > 0 or showZero) then
 								table.insert(categoryData.currencies, {
@@ -360,7 +375,8 @@ function Tracker:GetAllTrackables()
 									amount = cached.quantity,
 									icon = cached.iconFileID,
 									max = cached.maxQuantity or weeklyMax,
-									weeklyMax = effectiveWeeklyMax,
+									cap = capAmount,
+									capType = capType,
 									earnedThisWeek = cached.quantityEarnedThisWeek,
 								})
 							-- Show undiscovered currencies when showUndiscovered is enabled
@@ -371,7 +387,8 @@ function Tracker:GetAllTrackables()
 									amount = 0,
 									icon = cached.iconFileID or iconFileID,
 									max = cached.maxQuantity or weeklyMax,
-									weeklyMax = effectiveWeeklyMax,
+									cap = capAmount,
+									capType = capType,
 									earnedThisWeek = 0,
 								})
 							end

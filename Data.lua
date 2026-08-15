@@ -27,17 +27,18 @@ addon.Data.Categories = CATEGORY
 addon.Data.Currencies = {
 	-- Midnight (launches March 2, 2026)
 	[CATEGORY.MIDNIGHT] = {
-		-- Upgrade Crests (Dawncrests)
-		{3383, "Adventurer Dawncrest", nil, nil}, -- Adventurer track (240-250)
-		{3342, "Veteran Dawncrest", nil, nil}, -- Veteran track (237-250)
-		{3343, "Champion Dawncrest", nil, nil}, -- Champion track (250-263)
-		{3345, "Hero Dawncrest", nil, nil}, -- Hero track (263-276)
-		{3346, "Myth Dawncrest", nil, nil}, -- Myth track (276-289)
+		-- Upgrade Crests (Mistcrests, Season 2) -- spendable-balance IDs (verified in-game via /mtrack scancrests; higher ID of each pair holds the real quantity/discovered flag)
+		{3442, "Adventurer Mistcrest", nil, nil},
+		{3443, "Veteran Mistcrest", nil, nil},
+		{3444, "Champion Mistcrest", nil, nil},
+		{3445, "Hero Mistcrest", nil, nil},
+		{3446, "Myth Mistcrest", nil, nil},
 		-- Other Currencies
 		{3319, "Twilight's Blade Insignia", nil, nil}, -- Pre-patch event
 		{3379, "Brimming Arcana", nil, nil}, -- Main currency (Eversong)
 		{3316, "Voidlight Marl", nil, nil}, -- Vendor currency
 		{3363, "Community Coupons", nil, nil}, -- Housing/Neighborhood
+		{3465, "Venomblight Manaflux", nil, nil}, -- Season 2
 	},
 
 	-- War Within (includes Season 3)
@@ -45,9 +46,9 @@ addon.Data.Currencies = {
 		-- Season 3 Upgrade Materials
 		{3008, "Valorstones", nil, 5872034},
 		{3285, "Weathered Ethereal Crest", nil, 5927678},
-		{3288, "Carved Ethereal Crest", nil, 5927679},
+		{3287, "Carved Ethereal Crest", nil, 5927679},
 		{3289, "Runed Ethereal Crest", nil, 5927680},
-		{3290, "Gilded Ethereal Crest", nil, 5927681},
+		{3291, "Gilded Ethereal Crest", nil, 5927681},
 		{3028, "Restored Coffer Key", nil, 237446},
 		{3056, "Kej", nil, 5899557},
 		{2803, "Undercoin", nil, 2065568},

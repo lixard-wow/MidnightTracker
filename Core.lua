@@ -35,7 +35,7 @@ local defaults = {
 	settings = {
 		showZeroCurrencies = false,
 		showUndiscovered = false,
-		filterByZone = true, -- Only show currencies relevant to current zone
+		filterByZone = false, -- Only show currencies relevant to current zone (off by default; toggle with /mtrack filter)
 		-- Great Vault
 		showGreatVault = true,
 		showVaultRaid = true,
@@ -92,6 +92,15 @@ eventHandlers.PLAYER_LOGIN = function()
 	end
 	InitializeDefaults(MidnightTrackerDB, defaults)
 	addon.db = MidnightTrackerDB
+
+	-- One-time settings repair: older saved configs hide all Midnight currencies
+	-- (zone filter on with no Midnight zone detection, plus key currencies disabled).
+	if not addon.db.settingsRepairV2 then
+		addon.db.settings.filterByZone = false   -- zone detection has no Midnight maps yet
+		wipe(addon.db.settings.currencies)        -- re-enable every individually-disabled currency
+		addon.db.settingsRepairV2 = true
+		print("|cff00ff00[MidnightTracker]|r Repaired display settings (zone filter off, all currencies re-enabled).")
+	end
 
 	-- Initialize tracker module
 	if addon.Tracker and addon.Tracker.Initialize then
@@ -233,6 +242,33 @@ SlashCmdList["MIDNIGHTTRACKER"] = function(msg)
 		if addon.Display and addon.Display.UpdateDisplay then
 			addon.Display:UpdateDisplay()
 		end
+	elseif msg == "filter" then
+		addon.db.settings.filterByZone = not addon.db.settings.filterByZone
+		addon.Utils:Print(format("Filter by zone: %s", addon.db.settings.filterByZone and "ON" or "OFF"))
+		if addon.Display and addon.Display.UpdateDisplay then
+			addon.Display:UpdateDisplay()
+		end
+	elseif msg == "fix" then
+		-- One-shot recovery: undo every setting that can blank the display
+		addon.db.settings.filterByZone = false
+		addon.db.settings.showZeroCurrencies = true
+		addon.db.settings.showGreatVault = true
+		-- Re-enable every individually-disabled currency
+		wipe(addon.db.settings.currencies)
+		-- Enable all expansion categories
+		for k in pairs(addon.db.settings.categories) do
+			addon.db.settings.categories[k] = true
+		end
+		-- Restore a sane layout and make sure the frame is visible
+		addon.db.display.iconsPerRow = 3
+		addon.db.display.hidden = false
+		if addon.Display and addon.Display.Show then
+			addon.Display:Show()
+		end
+		if addon.Display and addon.Display.UpdateDisplay then
+			addon.Display:UpdateDisplay()
+		end
+		addon.Utils:Print("Reset display settings: zone filter OFF, all currencies/categories enabled, show-zero ON. Use /mtrack trackables to see what's tracked.")
 	elseif msg == "debug" then
 		addon.db.settings.debug = not addon.db.settings.debug
 		addon.Utils:Print(format("Debug mode: %s", addon.db.settings.debug and "ON" or "OFF"))
@@ -245,19 +281,36 @@ SlashCmdList["MIDNIGHTTRACKER"] = function(msg)
 		print(format("  Map Name: %s", mapInfo and mapInfo.name or "Unknown"))
 		print(format("  Detected Expansion: %s", tostring(expansion)))
 		print(format("  Filter Enabled: %s", addon.db.settings.filterByZone and "Yes" or "No"))
-	elseif msg == "currency" then
-		addon.Utils:Print("Checking Ethereal Crests:")
-		local crests = {3285, 3288, 3289, 3290}
+	elseif msg == "currency" or msg == "crests" then
+		addon.Utils:Print("Crest raw API data (qty | maxQty | maxWeekly | earnedWeek | totalEarnedCap | discovered):")
+		local crests = {
+			3442, 3443, 3444, 3445, 3446,   -- Midnight Mistcrests (Season 2)
+			3285, 3287, 3289, 3291,         -- War Within Ethereal Crests
+		}
 		for _, id in ipairs(crests) do
 			local info = C_CurrencyInfo.GetCurrencyInfo(id)
 			if info then
-				local enabled = addon.db.settings.currencies[id]
-				local enabledText = enabled == nil and "default" or (enabled and "enabled" or "DISABLED")
-				print(format("  [%d] %s: %d (discovered: %s, %s)", id, info.name, info.quantity, tostring(info.discovered), enabledText))
+				print(format("  [%d] %s: q=%s max=%s wMax=%s earnW=%s totalCap=%s disc=%s",
+					id, tostring(info.name),
+					tostring(info.quantity),
+					tostring(info.maxQuantity),
+					tostring(info.maxWeeklyQuantity),
+					tostring(info.quantityEarnedThisWeek),
+					tostring(info.useTotalEarnedForMaxQty),
+					tostring(info.discovered)))
 			else
 				print(format("  [%d] Not found", id))
 			end
 		end
+	elseif msg == "scancrests" then
+		addon.Utils:Print("Scanning currency IDs 3200-3500 for crests (id = real name):")
+		for id = 3200, 3500 do
+			local info = C_CurrencyInfo.GetCurrencyInfo(id)
+			if info and info.name and info.name:lower():find("crest") then
+				print(format("  [%d] %s (q=%s)", id, info.name, tostring(info.quantity)))
+			end
+		end
+		addon.Utils:Print("Scan complete.")
 	elseif msg == "trackables" or msg == "display" then
 		addon.Utils:Print("Currencies being tracked for display:")
 		local data = addon.Tracker:GetAllTrackables()
@@ -325,6 +378,8 @@ SlashCmdList["MIDNIGHTTRACKER"] = function(msg)
 		print("  /mtrack hide - Hide on-screen display")
 		print("  /mtrack toggle - Toggle on-screen display")
 		print("  /mtrack showzero - Toggle showing currencies with 0 amount")
+		print("  /mtrack filter - Toggle filtering currencies by current zone")
+		print("  /mtrack fix - Reset settings that can blank the display")
 		print("  /mtrack minimap show - Show minimap icon")
 		print("  /mtrack minimap hide - Hide minimap icon")
 		print("  /mtrack reset - Reset minimap icon position")

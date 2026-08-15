@@ -116,7 +116,7 @@ function Minimap:AddCurrencyLine(tooltip, currency)
 	local name = currency.name
 	local amount = currency.amount or 0
 	local max = currency.max
-	local weeklyMax = currency.weeklyMax
+	local weeklyMax = currency.capType == "weekly" and currency.cap or nil
 	local earnedThisWeek = currency.earnedThisWeek
 
 	-- Format amount with commas
