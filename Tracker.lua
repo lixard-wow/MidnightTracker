@@ -150,7 +150,7 @@ function Tracker:GetGreatVaultProgress()
 
 	local progress = {
 		raid = {current = 0, thresholds = {2, 4, 6}, levels = {}},
-		mythicplus = {current = 0, thresholds = {2, 4, 8}, levels = {}},
+		mythicplus = {current = 0, thresholds = {1, 4, 8}, levels = {}},
 		world = {current = 0, thresholds = {2, 4, 8}, levels = {}},
 	}
 
@@ -390,6 +390,39 @@ function Tracker:GetAllTrackables()
 									cap = capAmount,
 									capType = capType,
 									earnedThisWeek = 0,
+								})
+							end
+						end
+					end
+				end
+
+				-- Bag items tracked alongside currencies (e.g. crafting reagents like Spark)
+				if addon.Data.Items and addon.Data.Items[category] then
+					for _, itemInfo in ipairs(addon.Data.Items[category]) do
+						local itemID = itemInfo[1]
+						local displayName = itemInfo[2]
+						local iconFileID = itemInfo[3]
+
+						local itemEnabled = true
+						if addon.db and addon.db.settings and addon.db.settings.currencies then
+							if addon.db.settings.currencies[itemID] ~= nil then
+								itemEnabled = addon.db.settings.currencies[itemID]
+							end
+						end
+
+						if itemEnabled then
+							local amount = self:GetCachedItemCount(itemID)
+							local showZero = addon.db and addon.db.settings and addon.db.settings.showZeroCurrencies
+							if amount > 0 or showZero then
+								table.insert(categoryData.currencies, {
+									id = itemID,
+									name = displayName,
+									amount = amount,
+									icon = iconFileID,
+									max = nil,
+									cap = nil,
+									capType = "none",
+									earnedThisWeek = nil,
 								})
 							end
 						end

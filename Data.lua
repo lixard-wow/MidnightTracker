@@ -38,7 +38,7 @@ addon.Data.Currencies = {
 		{3379, "Brimming Arcana", nil, nil}, -- Main currency (Eversong)
 		{3316, "Voidlight Marl", nil, nil}, -- Vendor currency
 		{3363, "Community Coupons", nil, nil}, -- Housing/Neighborhood
-		{3465, "Venomblight Manaflux", nil, nil}, -- Season 2
+		{3465, "Venomblight Manaflux", nil, nil}, -- Season 2 Catalyst Charge currency (legacy ID 2167 "Catalyst Charges" is dead/unused this season)
 	},
 
 	-- War Within (includes Season 3)
@@ -159,6 +159,14 @@ addon.Data.Currencies = {
 		{81, "Epicurean's Award", nil, 133886},
 		{2588, "Riders of Azeroth Badge", nil, 4622500},
 		{2123, "Bloody Token", nil, 1945738},
+	},
+}
+
+-- Bag items tracked alongside currencies (not currency-tab entries, e.g. crafting reagents)
+-- Format: [categoryKey] = { {itemID, name, iconFileID}, ... }
+addon.Data.Items = {
+	[CATEGORY.MIDNIGHT] = {
+		{274476, "Spark of Tides", 7551419}, -- Catalyst crafting reagent, Season 2
 	},
 }
 

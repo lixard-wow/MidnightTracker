@@ -311,6 +311,18 @@ SlashCmdList["MIDNIGHTTRACKER"] = function(msg)
 			end
 		end
 		addon.Utils:Print("Scan complete.")
+	elseif string.sub(msg, 1, 5) == "scan " then
+		local keyword = string.lower(string.sub(msg, 6))
+		addon.Utils:Print(format("Scanning currency IDs 1500-4000 for '%s' (id = real name):", keyword))
+		for id = 1500, 4000 do
+			local info = C_CurrencyInfo.GetCurrencyInfo(id)
+			if info and info.name and info.name:lower():find(keyword) then
+				print(format("  [%d] %s (q=%s max=%s wMax=%s totalCap=%s disc=%s)",
+					id, info.name, tostring(info.quantity), tostring(info.maxQuantity),
+					tostring(info.maxWeeklyQuantity), tostring(info.useTotalEarnedForMaxQty), tostring(info.discovered)))
+			end
+		end
+		addon.Utils:Print("Scan complete.")
 	elseif msg == "trackables" or msg == "display" then
 		addon.Utils:Print("Currencies being tracked for display:")
 		local data = addon.Tracker:GetAllTrackables()

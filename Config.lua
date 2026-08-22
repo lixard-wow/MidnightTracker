@@ -850,6 +850,16 @@ function Config:BuildExpansionsSettings(parent)
 		local currencies = addon.Data.Currencies[categoryName]
 
 		if currencies then
+			-- Bag items (e.g. Spark) share the same enable/disable list as currencies
+			local trackables = {}
+			for _, c in ipairs(currencies) do
+				table.insert(trackables, c)
+			end
+			if addon.Data.Items and addon.Data.Items[categoryName] then
+				for _, itemInfo in ipairs(addon.Data.Items[categoryName]) do
+					table.insert(trackables, itemInfo)
+				end
+			end
 			-- Create container frame for this expansion
 			local expansionFrame = CreateFrame("Frame", nil, parent)
 			expansionFrame:SetPoint("TOPLEFT", previousFrame, "BOTTOMLEFT", 0, -5)
@@ -875,7 +885,7 @@ function Config:BuildExpansionsSettings(parent)
 			local column1X = 20
 			local column2X = 380
 
-			for _, currencyInfo in ipairs(currencies) do
+			for _, currencyInfo in ipairs(trackables) do
 				local currencyID = currencyInfo[1]
 				local currencyName = currencyInfo[2]
 
@@ -907,7 +917,7 @@ function Config:BuildExpansionsSettings(parent)
 			end
 
 			-- Calculate heights
-			local numRows = math.ceil(#currencies / 2)
+			local numRows = math.ceil(#trackables / 2)
 			local currenciesHeight = (numRows * 28) + 15
 			local expandedHeight = 30 + currenciesHeight
 			local collapsedHeight = 30
